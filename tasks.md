@@ -50,7 +50,7 @@ Principles: only data from `dataset/`; nothing after `audit_at`; `reported_statu
 - **Dependencies:** TASK-02.
 - **Acceptance criteria:** every non-multimodal manifest file yields records indexable by email/phone/hash/user_id/resource_id.
 
-### [] TASK-04 — Multimodal extraction (PDFs and images) with cache
+### [X] TASK-04 — Multimodal extraction (PDFs and images) with cache
 - **Inputs:** `evidence/documents/*`, `evidence/images/*`.
 - **Outputs:** `llm.py` (client + cache + token counter); `parser.py::extract_multimodal()` → `EvidenceRecord` with structured fields (resource_id, user_id, email, visible state, flows/selectors, backups).
 - **Dependencies:** TASK-03.

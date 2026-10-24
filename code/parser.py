@@ -6,9 +6,10 @@ parsed as timezone-aware UTC datetimes, and ``at_or_before`` implements the
 rule that only information available at or before ``audit_at`` may be used.
 
 Evidence *contents* are extracted by ``extract_structured()`` (SQL, JSON, TXT
-and logs; implemented in ``evidence_extractors``) and by the multimodal
-extractor (PDFs, images); the rest of this module loads the tabular files and
-the evidence manifest.
+and logs; implemented in ``evidence_extractors``) and by ``extract_multimodal()``
+(PDFs via a local extractor, images via cached LLM vision; implemented in
+``multimodal_extractors`` and ``llm``); the rest of this module loads the
+tabular files and the evidence manifest.
 """
 
 from __future__ import annotations
@@ -18,7 +19,10 @@ import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, Iterable, Iterator, Sequence, TypeVar
+from typing import TYPE_CHECKING, Callable, Iterable, Iterator, Sequence, TypeVar
+
+if TYPE_CHECKING:
+    from llm import LLMClient
 
 from models import (
     Case,
@@ -401,6 +405,33 @@ def extract_structured(tables: Tables) -> list[EvidenceRecord]:
     from evidence_extractors import extract_structured_files
 
     return extract_structured_files(tables.evidence_files, tables.dataset_dir)
+
+
+def extract_multimodal(
+    tables: Tables,
+    client: LLMClient | None = None,
+    *,
+    strict: bool = False,
+    skipped: list[str] | None = None,
+) -> list[EvidenceRecord]:
+    """Extract ``EvidenceRecord`` objects from every PDF and screenshot.
+
+    PDFs are read with a local text extractor and parsed deterministically;
+    only images use LLM vision. Every image answer is cached on disk, so a
+    second run makes no provider calls (and needs no API key). An image with
+    no cached answer and no API key raises ``LLMUnavailableError`` when
+    ``strict`` is true; otherwise it is skipped with a warning and its
+    ``file_id`` is appended to ``skipped``. Order follows the manifest.
+    """
+    from multimodal_extractors import extract_multimodal_files
+
+    return extract_multimodal_files(
+        tables.evidence_files,
+        tables.dataset_dir,
+        client,
+        strict=strict,
+        skipped=skipped,
+    )
 
 
 def build_evidence_index(records: Iterable[EvidenceRecord]):

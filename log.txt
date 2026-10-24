@@ -136,3 +136,27 @@ branch=main
 repo_root=/Users/valentinavarela/Desktop/Coding/hackerrank-orchestrate-october26
 worktree=main
 parent_agent=orchestrator
+
+## [2026-10-24T20:44:00Z] TASK-04: Multimodal extraction with cache (llm.py)
+
+User Prompt (verbatim, secrets redacted):
+You are an AI coding sub-agent working on the HackerRank challenge "Ghost Data Still Exists". Your parent agent is orchestrating the project using Specification-Driven Development (SDD). TASK-04 - Multimodal extraction (PDFs and images) with cache. Inputs: evidence/documents/*, evidence/images/*. Outputs: llm.py (client + cache + token counter); parser.py::extract_multimodal() -> EvidenceRecord with structured fields (resource_id, user_id, email, visible state, flows/selectors, backups). Dependencies: TASK-03. Acceptance criteria: PDF text via local extractor when possible; LLM vision only for images; second run = 0 calls (cached). (Remaining instructions: follow problem_statement.md and AGENTS.md, stay in scope, stop and report on missing dependencies or ambiguity, mark TASK-04 as [X] in tasks.md when verified.)
+
+Agent Response Summary:
+Created code/llm.py (stdlib-only Anthropic/OpenAI(groq) client, hash-keyed on-disk response cache, retry with backoff, per-model usage/cost tracker that separates live calls from cache replays, API key read from environment or uncommitted .env) and code/multimodal_extractors.py (PDFs parsed locally via pdftotext/pypdf into per-row and per-resource EvidenceRecords; screenshots sent to a vision model with a validated JSON schema). Wired parser.py::extract_multimodal(). Verified with the real PDFs and a fake transport: 11 images -> 11 calls first run, 0 calls second run with no key, invalid answers rejected and not cached. No API key was available, so a live vision call was not executed and the real image cache is not yet populated.
+
+Actions:
+* Created code/llm.py
+* Created code/multimodal_extractors.py
+* Edited code/parser.py (extract_multimodal, docstring, TYPE_CHECKING import)
+* Ran ad-hoc verification scripts against the real PDFs, a fake transport and a local mock HTTP server (removed afterwards)
+* Edited tasks.md (TASK-04 checked)
+* Appended this entry to log.txt
+
+Context:
+tool=GitHub Copilot
+model=Claude Sonnet 5.5
+branch=main
+repo_root=/Users/valentinavarela/Desktop/Coding/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=orchestrator
