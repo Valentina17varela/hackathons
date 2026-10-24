@@ -5,8 +5,10 @@ typed, immutable records without dropping or rewriting any row. Timestamps are
 parsed as timezone-aware UTC datetimes, and ``at_or_before`` implements the
 rule that only information available at or before ``audit_at`` may be used.
 
-Evidence *contents* (SQL, JSON, logs, PDFs, images) are extracted by later
-stages; this module only loads the tabular files and the evidence manifest.
+Evidence *contents* are extracted by ``extract_structured()`` (SQL, JSON, TXT
+and logs; implemented in ``evidence_extractors``) and by the multimodal
+extractor (PDFs, images); the rest of this module loads the tabular files and
+the evidence manifest.
 """
 
 from __future__ import annotations
@@ -22,6 +24,7 @@ from models import (
     Case,
     DeletionRule,
     DeletionStatus,
+    EvidenceRecord,
     ReportedStatus,
     RuleAction,
     Step,
@@ -380,3 +383,28 @@ def load_tables(dataset_dir: Path | str = DEFAULT_DATASET_DIR) -> Tables:
         evidence_files=evidence_files,
         dataset_dir=root,
     )
+
+
+# ---------------------------------------------------------------------------
+# Structured evidence extraction
+# ---------------------------------------------------------------------------
+# ``evidence_extractors`` imports this module, so it is imported lazily here.
+
+
+def extract_structured(tables: Tables) -> list[EvidenceRecord]:
+    """Extract ``EvidenceRecord`` objects from every non-multimodal evidence file.
+
+    SQL snapshots run in a per-file in-memory SQLite (primary and replica tables
+    are compared), JSON/TXT/log files are parsed into records, and PDFs/images
+    are skipped (see the multimodal extractor). Order follows the manifest.
+    """
+    from evidence_extractors import extract_structured_files
+
+    return extract_structured_files(tables.evidence_files, tables.dataset_dir)
+
+
+def build_evidence_index(records: Iterable[EvidenceRecord]):
+    """Index records by email, phone, email hash, user id and resource id."""
+    from evidence_extractors import EvidenceIndex
+
+    return EvidenceIndex(records)

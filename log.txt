@@ -113,3 +113,26 @@ branch=main
 repo_root=/Users/valentinavarela/Desktop/Coding/hackerrank-orchestrate-october26
 worktree=main
 parent_agent=orchestrator
+
+## [2026-10-24T21:30:00Z] TASK-03: Structured evidence extractors (code/evidence_extractors.py)
+
+User Prompt (verbatim, secrets redacted):
+You are an AI coding sub-agent working on the HackerRank challenge "Ghost Data Still Exists". Your parent agent is orchestrating the project using Specification-Driven Development (SDD). TASK-03 — Structured evidence extractors. Inputs: evidence/databases/*.sql, evidence/records/*.json|txt, evidence/logs/*.log, evidence_files.csv. Outputs: parser.py::extract_structured() -> EvidenceRecord(file_id, captured_at, system_id, resource_id, fields, raw_text); SQL executed in per-file in-memory SQLite (primary vs replica comparison). Dependencies: TASK-02. Acceptance criteria: every non-multimodal manifest file yields records indexable by email/phone/hash/user_id/resource_id. (Remaining instructions: follow problem_statement.md and AGENTS.md, stay in scope, mark TASK-03 as [X] in tasks.md when verified.)
+
+Agent Response Summary:
+Created code/evidence_extractors.py (SQL via in-memory SQLite with primary/replica drift annotation and snapshot-scope records, JSON/TXT record walkers, multi-syntax log parser, EvidenceIndex with email/phone/hash/user_id/resource_id/system lookups) and wired extract_structured()/build_evidence_index() into code/parser.py with lazy imports. Verified on the full dataset: 79 structured files all yield records (3029 total), deterministic output, case-insensitive email lookups, no sha256 seal mistaken for an email hash, failover-replica drift detected. Marked TASK-03 as [X]. Note: EvidenceRecord keeps the TASK-01 field name evidence_id (holds the manifest file_id).
+
+Actions:
+* Created code/evidence_extractors.py
+* Edited code/parser.py (docstring, EvidenceRecord import, extract_structured, build_evidence_index)
+* Ran ad-hoc verification scripts (removed afterwards)
+* Edited tasks.md (TASK-03 checked)
+* Appended this entry to log.txt
+
+Context:
+tool=GitHub Copilot
+model=Claude Sonnet 5.5
+branch=main
+repo_root=/Users/valentinavarela/Desktop/Coding/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=orchestrator

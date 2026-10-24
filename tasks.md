@@ -44,7 +44,7 @@ Principles: only data from `dataset/`; nothing after `audit_at`; `reported_statu
 - **Dependencies:** TASK-01.
 - **Acceptance criteria:** 518 cases, 32 samples, 94 manifest evidence files, 4011 activities, 306 audit events loaded without loss.
 
-### [] TASK-03 — Structured evidence extractors
+### [X] TASK-03 — Structured evidence extractors
 - **Inputs:** `evidence/databases/*.sql`, `evidence/records/*.json|txt`, `evidence/logs/*.log`, `evidence_files.csv`.
 - **Outputs:** `parser.py::extract_structured()` → `EvidenceRecord(file_id, captured_at, system_id, resource_id, fields, raw_text)`; SQL executed in per-file in-memory SQLite (primary vs replica comparison).
 - **Dependencies:** TASK-02.
