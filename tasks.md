@@ -32,7 +32,7 @@ Principles: only data from `dataset/`; nothing after `audit_at`; `reported_statu
 
 ## Tasks
 
-### [] TASK-01 — Contracts and domain models
+### [X] TASK-01 — Contracts and domain models
 - **Inputs:** `problem_statement.md` §Allowed Operations, `AGENTS.md` §6.
 - **Outputs:** `code/models.py` (dataclasses + enums), canonical operation-order table, operation→state map, rule action → (finding, remediation, verification) map.
 - **Dependencies:** none.
