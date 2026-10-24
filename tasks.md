@@ -75,11 +75,13 @@ Principles: only data from `dataset/`; nothing after `audit_at`; `reported_statu
 - **Acceptance criteria:** evidence after `audit_at` is ignored; a `SUCCESS` without state evidence is not accepted; recreation after deletion (sync/restore) is detected.
 - **Known limits (verified on samples):** accounts and anonymized analytics profiles carry no identifier and are linked only by activity-stream heuristics (`reported_at` window; second-of-minute offset 40-42 s after the account delete), so some are not found (e.g. case_04). Some golden ids (e.g. security audit records) appear in no visible source. A decoy log can add an extra resource (case_17, `account_6523`). The golden choice of cited evidence file is unknown; the latest valid observation at or before `audit_at` is used.
 
-### [] TASK-08 — Policy application and status decision
+### [X] TASK-08 — Policy application and status decision
 - **Inputs:** `list[Resource]`, `deletion_rules.csv`, TASK-05 result.
 - **Outputs:** `evaluator.py::assess() -> Assessment` (status + violations + compliant verifications); handling of `ACCOUNT_TOMBSTONE`, `RETAIN`, legal hold, backups. Calls `investigate(..., reported_at=case.reported_at)`. Resources with a `risk_kind` are judged with `RISK_COMPLIANT_STATE` (flow must be `DISABLED`, restore `BLOCKED`); all others with `RULE_ACTION_COMPLIANT_STATE` for their `data_category`.
 - **Dependencies:** TASK-05, TASK-07.
 - **Acceptance criteria:** `COMPLETE` only if every resource complies, every retained record is still present, and no flows/restores are active. On the 32 samples, violation vs compliant status per shared resource and the case status agree with `sample_output.csv`.
+- **Implementation notes (verified):** `assess(case, *, resources=None, rules=None, authorized=None, classifier=None, tables=None, index=None, resolver=None)`; non-deletion requests return `NOT_APPLICABLE` with no treatments; `apply_policy(case_id, resources, rules)` does the judging. Each `Treatment` carries the plan (finding/remediation/verification operations) used by TASK-09. Comparison is strict (a `RETAIN`/`REDACT` record that is `ABSENT` is a violation); `UNKNOWN` states and categories without a rule are skipped. Retention periods and legal-hold validity are not re-evaluated (every visible `retention_until` is after any `audit_at`). On the 32 samples: 32/32 case statuses, 92/92 shared resources, and 0 operation mismatches versus `sample_output.csv`.
+- **Out-of-scope edit (required for correct rules):** `investigator._category` now maps support evidence that is a contact-index lookup to `SECONDARY_IDENTIFIER` (rule_02, `DELETE`) and a business document artifact to `SUPPORT_ATTACHMENT` (rule_06, `DELETE`), instead of `SUPPORT_MESSAGE` (rule_05, `REDACT`); this fixed case_07 and case_10.
 
 ### [] TASK-09 — Step planner and orchestration
 - **Inputs:** `Assessment`.

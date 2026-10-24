@@ -1,9 +1,15 @@
 """Deletion-status evaluation.
 
-This module currently provides the first evaluation gate: deciding whether a
-request actually *authorizes deletion*. Requests for access, correction,
-export, marketing opt-out, or anything else that is not a deletion are
-``NOT_APPLICABLE`` and never reach the investigation stage.
+This module provides two stages:
+
+* the first evaluation gate (TASK-05): deciding whether a request actually
+  *authorizes deletion*. Requests for access, correction, export, marketing
+  opt-out, or anything else that is not a deletion are ``NOT_APPLICABLE`` and
+  never reach the investigation stage;
+* policy application (TASK-08): ``assess()`` judges every investigated
+  resource against ``deletion_rules.csv`` (or the recreation-risk target
+  states) and decides ``COMPLETE`` / ``INCOMPLETE``. See "Policy application"
+  below.
 
 Classification strategy
 -----------------------
@@ -17,7 +23,8 @@ Classification strategy
    classifier decides instead. The result is therefore always defined and the
    pipeline never stops because of this step.
 
-Public API: ``authorizes_deletion(case) -> bool``.
+Public API: ``authorizes_deletion(case) -> bool`` and
+``assess(case, ...) -> Assessment``.
 """
 
 from __future__ import annotations
@@ -27,10 +34,25 @@ import re
 import unicodedata
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
+from typing import Any, Iterable, Mapping, Sequence
 
+from evidence_extractors import EvidenceIndex
+from identity_resolver import IdentityResolver, resolve
+from investigator import investigate
 from llm import LLMClient, LLMError, LLMRequest, parse_json_text
-from models import Case
+from models import (
+    RISK_COMPLIANT_STATE,
+    RISK_PLAN,
+    RULE_ACTION_COMPLIANT_STATE,
+    Assessment,
+    Case,
+    DeletionRule,
+    DeletionStatus,
+    ObservedState,
+    Resource,
+    Treatment,
+)
+from parser import Tables, load_tables
 
 logger = logging.getLogger(__name__)
 
@@ -323,3 +345,142 @@ def authorizes_deletion(case: Case, classifier: IntentClassifier | None = None) 
             _default_classifier = IntentClassifier()
         classifier = _default_classifier
     return classifier.classify(case.request_text).authorizes_deletion
+
+
+# ---------------------------------------------------------------------------
+# Policy application (TASK-08)
+# ---------------------------------------------------------------------------
+#
+# Each investigated resource is paired with the treatment that policy demands:
+#
+# * a recreation risk (``risk_kind`` set: active data flow, restorable backup)
+#   is judged with ``RISK_COMPLIANT_STATE`` (flow ``DISABLED``, restore
+#   ``BLOCKED``);
+# * every other resource is judged with the ``deletion_rules.csv`` action of
+#   its ``data_category`` through ``RULE_ACTION_COMPLIANT_STATE``. This covers
+#   ``DELETE`` (record must be ``ABSENT``), ``REDACT`` / ``ANONYMIZE``
+#   (record must remain, in the redacted / anonymized form), and ``RETAIN``
+#   (security audit logs within retention, legal holds: the record must still
+#   be ``PRESENT``). ``ACCOUNT_TOMBSTONE`` uses its ``REDACT`` rule: the stable
+#   subject reference remains, direct identifiers must be gone.
+#
+# A resource whose state could not be reconstructed (``UNKNOWN``) is neither a
+# violation nor a proven-compliant record and is left out; a resource whose
+# category has no rule is skipped with a warning. Equality with the required
+# state is strict: a ``RETAIN`` record that is ``ABSENT`` or a ``REDACT``
+# record that is ``ABSENT`` is a violation (the required copy is missing).
+#
+# The case is ``COMPLETE`` only when there is no violation. ``reported_status``
+# is a workflow claim and is never consulted.
+
+
+def rules_by_category(rules: Iterable[DeletionRule]) -> dict[str, DeletionRule]:
+    """Index rules by ``data_category``; the first rule of a category wins."""
+    indexed: dict[str, DeletionRule] = {}
+    for rule in rules:
+        indexed.setdefault(rule.data_category, rule)
+    return indexed
+
+
+def treatment_for(
+    resource: Resource, rules: Mapping[str, DeletionRule]
+) -> Treatment | None:
+    """The treatment required for ``resource``, or ``None`` if it cannot be judged."""
+    if resource.observed_state is ObservedState.UNKNOWN:
+        logger.debug(
+            "state of %s/%s is unknown; not judged",
+            resource.system_id,
+            resource.resource_id,
+        )
+        return None
+    if resource.risk_kind is not None:
+        return Treatment(
+            resource=resource,
+            plan=RISK_PLAN[resource.risk_kind],
+            compliant_state=RISK_COMPLIANT_STATE[resource.risk_kind],
+        )
+    rule = rules.get(resource.data_category or "")
+    if rule is None:
+        logger.warning(
+            "no deletion rule for category %r of %s/%s; skipped",
+            resource.data_category,
+            resource.system_id,
+            resource.resource_id,
+        )
+        return None
+    return Treatment(
+        resource=resource,
+        plan=rule.plan,
+        compliant_state=RULE_ACTION_COMPLIANT_STATE[rule.required_action],
+        action=rule.required_action,
+    )
+
+
+def apply_policy(
+    case_id: str,
+    resources: Sequence[Resource],
+    rules: Iterable[DeletionRule],
+) -> Assessment:
+    """Judge investigated ``resources`` of an authorized deletion case.
+
+    Input order is preserved in ``violations`` and ``compliant``.
+    """
+    indexed = rules_by_category(rules)
+    violations: list[Treatment] = []
+    compliant: list[Treatment] = []
+    for resource in resources:
+        treatment = treatment_for(resource, indexed)
+        if treatment is None:
+            continue
+        (compliant if treatment.is_compliant else violations).append(treatment)
+    if not violations and not compliant:
+        logger.warning("%s: no resource could be judged; reporting COMPLETE", case_id)
+    return Assessment(
+        case_id=case_id,
+        status=DeletionStatus.INCOMPLETE if violations else DeletionStatus.COMPLETE,
+        violations=violations,
+        compliant=compliant,
+    )
+
+
+def assess(
+    case: Case,
+    *,
+    resources: Sequence[Resource] | None = None,
+    rules: Iterable[DeletionRule] | None = None,
+    authorized: bool | None = None,
+    classifier: IntentClassifier | None = None,
+    tables: Tables | None = None,
+    index: EvidenceIndex | None = None,
+    resolver: IdentityResolver | None = None,
+) -> Assessment:
+    """Decide the deletion status of ``case`` and list its violations.
+
+    1. ``NOT_APPLICABLE`` (no violations, nothing to verify) unless the request
+       authorizes deletion (``authorized`` overrides the intent classifier).
+    2. Otherwise resolve the identity, call
+       ``investigate(..., reported_at=case.reported_at)`` and apply policy.
+
+    Pass ``resources`` to judge an already investigated list; ``rules``
+    defaults to ``tables.rules`` (or the default dataset). Identity resolution
+    errors (unknown or ambiguous email) propagate to the caller.
+    """
+    if authorized is None:
+        authorized = authorizes_deletion(case, classifier)
+    if not authorized:
+        return Assessment(case_id=case.case_id, status=DeletionStatus.NOT_APPLICABLE)
+
+    if resources is None:
+        identity = (
+            resolver.resolve(case) if resolver is not None else resolve(case, tables)
+        )
+        resources = investigate(
+            identity,
+            case.audit_at,
+            reported_at=case.reported_at,
+            tables=tables,
+            index=index,
+        )
+    if rules is None:
+        rules = (tables or load_tables()).rules
+    return apply_policy(case.case_id, resources, rules)

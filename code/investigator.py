@@ -480,6 +480,14 @@ def _record_state(system_id: str, fields: Mapping[str, Any]) -> ObservedState | 
 
 def _category(system_id: str, fields: Mapping[str, Any]) -> str | None:
     if system_id == SUPPORT:
+        # A contact-index lookup is a secondary identifier, not a conversation.
+        if "contact_query" in str(fields.get("events", "")) or "contact_index" in str(
+            fields.get("source", "")
+        ):
+            return "SECONDARY_IDENTIFIER"
+        # A business document artifact (not a message thread) is an attachment.
+        if not _is_null(fields.get("document_type")):
+            return "SUPPORT_ATTACHMENT"
         attachment = (
             _has_key(fields, "uploaded_by", "storage_class")
             or "attachment" in str(fields.get("collection_name", "")).lower()
