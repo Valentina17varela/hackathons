@@ -66,7 +66,9 @@ from parser import Tables
 
 logger = logging.getLogger(__name__)
 
-# (system_id, verification operation) expected in every deletion case.
+# Verification steps added for every deletion case when the account/security
+# system was not judged by the assessment: the account record must be absent
+# and the security audit log must still be present.
 FIXED_VERIFICATIONS: tuple[tuple[str, Operation], ...] = (
     (ACCOUNT, Operation.VERIFY_RECORD_ABSENT),
     (SECURITY, Operation.VERIFY_RECORD_PRESENT),
@@ -289,6 +291,12 @@ def build_steps(
         return []
     plan = _Plan()
     if assessment.status is DeletionStatus.INCOMPLETE:
+        if not assessment.violations:
+            logger.warning(
+                "%s: INCOMPLETE without a groundable finding; empty plan",
+                assessment.case_id,
+            )
+            return []
         _plan_incomplete(plan, assessment, citations)
     else:
         _plan_complete(plan, assessment, citations)
@@ -300,19 +308,20 @@ def build_steps(
             assessment.case_id,
             assessment.status.value,
         )
+        return []
     validate_plan(assessment.status, steps)
     return steps
 
 
 def validate_plan(status: DeletionStatus, steps: Sequence[Step]) -> None:
-    """``models.validate_steps`` that tolerates an empty plan.
+    """``models.validate_steps`` that tolerates an empty plan only for ``INCOMPLETE``.
 
-    A deletion case whose resources could not be found in visible data has
-    nothing to cite, and ids are never invented, so ``[]`` is the honest answer
-    (reported as a warning by ``build_steps``). Any other violation raises
-    ``models.InvalidStepError``.
+    An incomplete case whose records could not be grounded in visible data has
+    nothing to cite and ids are never invented, so ``[]`` is the honest answer
+    (reported as a warning by ``build_steps``). ``COMPLETE`` with no step is a
+    contract violation: a completed deletion must be proven by evidence.
     """
-    if not steps and status is not DeletionStatus.NOT_APPLICABLE:
+    if not steps and status is DeletionStatus.INCOMPLETE:
         return
     validate_steps(status, steps)
 

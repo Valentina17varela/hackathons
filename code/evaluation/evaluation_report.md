@@ -21,27 +21,27 @@ Caveat: the pipeline was developed against these 32 samples, so the sample numbe
 | Metric | Value | Count |
 |---|---|---|
 | Case-level deletion status accuracy | 100.0% | 32/32 |
-| Exact row accuracy (status and every step field) | 56.2% | 18/32 |
-| Step precision (identity: phase, operation, system, resource) | 99.4% | 174/175 |
-| Step recall (identity) | 90.2% | 174/193 |
-| Step F1 (identity) | 94.6% |  |
-| Strict step precision (identity and `evidence_id`) | 98.9% | 173/175 |
-| Strict step recall (identity and `evidence_id`) | 89.6% | 173/193 |
-| Sequence accuracy (identical ordered step list) | 59.4% | 19/32 |
-| Sequence similarity (mean 2*LCS / (expected + predicted)) | 90.0% |  |
-| Overall field accuracy (positional) | 80.8% |  |
+| Exact row accuracy (status and every step field) | 53.1% | 17/32 |
+| Step precision (identity: phase, operation, system, resource) | 96.2% | 175/182 |
+| Step recall (identity) | 90.7% | 175/193 |
+| Step F1 (identity) | 93.3% |  |
+| Strict step precision (identity and `evidence_id`) | 95.6% | 174/182 |
+| Strict step recall (identity and `evidence_id`) | 90.2% | 174/193 |
+| Sequence accuracy (identical ordered step list) | 56.2% | 18/32 |
+| Sequence similarity (mean 2*LCS / (expected + predicted)) | 90.6% |  |
+| Overall field accuracy (positional) | 76.5% |  |
 
 Field-level accuracy (positional):
 
 | Field | Accuracy | Correct positions |
 |---|---|---|
-| `step_no` | 89.7% | 174/194 |
-| `phase` | 89.7% | 174/194 |
-| `system_id` | 72.7% | 141/194 |
-| `resource_id` | 72.7% | 141/194 |
-| `operation` | 75.8% | 147/194 |
-| `state` | 75.8% | 147/194 |
-| `evidence_id` | 89.2% | 173/194 |
+| `step_no` | 87.5% | 175/200 |
+| `phase` | 84.5% | 169/200 |
+| `system_id` | 68.5% | 137/200 |
+| `resource_id` | 68.5% | 137/200 |
+| `operation` | 70.5% | 141/200 |
+| `state` | 71.5% | 143/200 |
+| `evidence_id` | 84.5% | 169/200 |
 
 ### Per-case results
 
@@ -50,10 +50,10 @@ Field-level accuracy (positional):
 | case_01 | COMPLETE / COMPLETE | 1 / 1 | 1 | 0 | 0 | 0 | yes | yes |
 | case_02 | COMPLETE / COMPLETE | 1 / 1 | 1 | 0 | 0 | 0 | yes | yes |
 | case_03 | COMPLETE / COMPLETE | 3 / 3 | 3 | 0 | 0 | 0 | yes | yes |
-| case_04 | COMPLETE / COMPLETE | 2 / 0 | 0 | 2 | 0 | 0 | no | no |
+| case_04 | COMPLETE / COMPLETE | 2 / 1 | 1 | 1 | 0 | 0 | no | no |
 | case_05 | INCOMPLETE / INCOMPLETE | 3 / 3 | 3 | 0 | 0 | 0 | yes | yes |
 | case_06 | INCOMPLETE / INCOMPLETE | 4 / 4 | 4 | 0 | 0 | 0 | yes | yes |
-| case_07 | INCOMPLETE / INCOMPLETE | 4 / 4 | 4 | 0 | 0 | 0 | yes | yes |
+| case_07 | INCOMPLETE / INCOMPLETE | 4 / 7 | 4 | 0 | 3 | 0 | no | no |
 | case_08 | INCOMPLETE / INCOMPLETE | 4 / 4 | 4 | 0 | 0 | 0 | yes | yes |
 | case_09 | INCOMPLETE / INCOMPLETE | 5 / 5 | 5 | 0 | 0 | 0 | yes | yes |
 | case_10 | INCOMPLETE / INCOMPLETE | 4 / 4 | 4 | 0 | 0 | 0 | yes | yes |
@@ -63,7 +63,7 @@ Field-level accuracy (positional):
 | case_14 | INCOMPLETE / INCOMPLETE | 5 / 5 | 5 | 0 | 0 | 0 | yes | yes |
 | case_15 | INCOMPLETE / INCOMPLETE | 5 / 5 | 5 | 0 | 0 | 0 | yes | yes |
 | case_16 | INCOMPLETE / INCOMPLETE | 7 / 7 | 7 | 0 | 0 | 0 | yes | yes |
-| case_17 | INCOMPLETE / INCOMPLETE | 5 / 6 | 5 | 0 | 1 | 0 | no | no |
+| case_17 | INCOMPLETE / INCOMPLETE | 5 / 9 | 5 | 0 | 4 | 0 | no | no |
 | case_18 | INCOMPLETE / INCOMPLETE | 14 / 12 | 12 | 2 | 0 | 0 | no | no |
 | case_19 | INCOMPLETE / INCOMPLETE | 8 / 8 | 8 | 0 | 0 | 0 | yes | yes |
 | case_20 | INCOMPLETE / INCOMPLETE | 8 / 6 | 6 | 2 | 0 | 0 | no | no |
@@ -82,18 +82,21 @@ Field-level accuracy (positional):
 
 ### Where the differences come from
 
-14 of 32 sample rows differ from the reference. 19 reference steps are missing, 1 predicted steps are extra, and 1 otherwise matching steps cite a different `evidence_id`.
+15 of 32 sample rows differ from the reference. 18 reference steps are missing, 7 predicted steps are extra, and 1 otherwise matching steps cite a different `evidence_id`.
 
 | system_id | Missing steps | Extra steps |
 |---|---|---|
 | `account_service` | 12 | 1 |
-| `analytics_platform` | 5 | 0 |
+| `analytics_platform` | 4 | 0 |
+| `identity_service` | 0 | 3 |
+| `object_storage` | 0 | 3 |
 | `security_service` | 2 | 0 |
 
 Differences per case (steps are `operation system_id/resource_id`):
 
-- case_04: missing VERIFY_RECORD_ABSENT account_service/account_004, VERIFY_RECORD_ANONYMIZED analytics_platform/analytics_901
-- case_17: extra VERIFY_RECORD_ABSENT account_service/account_6523
+- case_04: missing VERIFY_RECORD_ABSENT account_service/account_004
+- case_07: extra REPORT_REMAINING_RECORD object_storage/object_19, DELETE_RECORD object_storage/object_19, VERIFY_RECORD_ABSENT object_storage/object_19
+- case_17: extra REPORT_EXPOSED_PII identity_service/tombstone_17, REDACT_RECORD identity_service/tombstone_17, VERIFY_RECORD_ABSENT account_service/account_6523, VERIFY_RECORD_REDACTED identity_service/tombstone_17
 - case_18: missing VERIFY_RECORD_ABSENT account_service/account_5521, VERIFY_RECORD_PRESENT security_service/audit_record_6645
 - case_20: missing VERIFY_RECORD_ABSENT account_service/account_5037, VERIFY_RECORD_PRESENT security_service/audit_record_5569
 - case_21: missing VERIFY_RECORD_ABSENT account_service/account_6440, VERIFY_RECORD_ANONYMIZED analytics_platform/analytics_5335
@@ -109,7 +112,7 @@ Differences per case (steps are `operation system_id/resource_id`):
 
 ## 3. Custom evaluation cases
 
-7 of 7 custom cases pass. Each case changes one thing in a real sample request, so the expectation does not need a hand-written golden answer. Every case must also give a plan that satisfies the step contract and cites nothing later than its `audit_at`.
+11 of 11 custom cases pass. Each case changes one thing in a real sample request, so the expectation does not need a hand-written golden answer. Every case must also give a plan that satisfies the step contract and cites nothing later than its `audit_at`.
 
 | Case | What it tests | Expectation | Observed | Result |
 |---|---|---|---|---|
@@ -119,17 +122,20 @@ Differences per case (steps are `operation system_id/resource_id`):
 | custom_04_instruction_in_request | An export request that embeds an instruction aimed at the classifier. | NOT_APPLICABLE with `[]` (text inside the request is data, not instructions) | NOT_APPLICABLE, 0 step(s) | PASS |
 | custom_05_paraphrased_deletion_french | case_01 with the deletion request rewritten in French. | same status and steps as case_01 | COMPLETE, 1 step(s) | PASS |
 | custom_06_current_instead_of_historical_email | case_10 asked with a historical email; the same request with the account's current email. | same status and steps as case_10 (both emails resolve to one user) | INCOMPLETE, 4 step(s) | PASS |
-| custom_07_early_audit_cutoff | case_09 audited 36 hours after the request instead of on the sample audit date, so most evidence has not been captured yet. | valid plan that cites nothing later than the new `audit_at` | COMPLETE, 0 step(s) | PASS |
+| custom_07_early_audit_cutoff | case_09 audited 36 hours after the request instead of on the sample audit date, so most evidence has not been captured yet. | valid plan that cites nothing later than the new `audit_at` | INCOMPLETE, 0 step(s) | PASS |
+| custom_08_screenshot_only_analytics_7438 | Evaluation case_50: profile row titled with a user id; the record exists only in a screenshot. | INCOMPLETE with a finding on `analytics_7438` (never COMPLETE with no steps) | INCOMPLETE, 3 step(s) | PASS |
+| custom_09_screenshot_only_support_1034 | Evaluation case_53: ticket row titled with a CS-xxxx reference; the record exists only in a screenshot. | INCOMPLETE with a finding on `support_1034` (never COMPLETE with no steps) | INCOMPLETE, 3 step(s) | PASS |
+| custom_10_screenshot_only_object_19 | Evaluation case_61: file shown by name, mapped by the data catalog; the record exists only in a screenshot. | INCOMPLETE with a finding on `object_19` (never COMPLETE with no steps) | INCOMPLETE, 3 step(s) | PASS |
+| custom_11_screenshot_only_marketing_001 | Evaluation case_63: catalog-linked record shown under another name; the record exists only in a screenshot. | INCOMPLETE with a finding on `marketing_001` (never COMPLETE with no steps) | INCOMPLETE, 3 step(s) | PASS |
 
 ## 4. Full evaluation set sanity checks
 
 The complete evaluation set (518 requests) was run end to end.
 
-- Status distribution: COMPLETE: 157, INCOMPLETE: 351, NOT_APPLICABLE: 10.
+- Status distribution: COMPLETE: 153, INCOMPLETE: 355, NOT_APPLICABLE: 10.
 - Contract check (one row per `case_id`, sorted, valid `steps_json`, consecutive `step_no`, canonical order): passed.
 - Citation check (every cited id exists and is not later than the case's `audit_at`): passed for all rows.
 - The rows of this run are identical to `output.csv` (the run is deterministic and the submitted file is current).
-- 4 deletion case(s) have an empty plan because the investigator found no resource in visible data (case_50, case_53, case_61, case_63).
 - Intent source: 518 request texts decided by the model (cache or live), 0 by the keyword fallback (0 of those are `NOT_APPLICABLE`).
 
 ## 5. Failures found

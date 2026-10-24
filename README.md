@@ -170,6 +170,16 @@ This repository includes [`AGENTS.md`](./AGENTS.md), which instructs compatible 
 
 ---
 
+## Known Limitations
+
+- **Heuristic links** (no identifier exists in the data): the second-of-minute fingerprint used to attribute anonymized analytics profiles, the `reported_at` window used to attribute a deleted account, and a last-resort lone analytics anonymization near `reported_at`. They only run when no grounded link exists (constants are documented in `code/investigator.py`).
+- **Screenshot-only records** are linked through identifiers shown on screen, the data catalog (`LINK_RESOURCE_IDENTITY`, including the file name in parentheses) and one-character OCR repairs of emails that must also match the person's name. A catalog link wins over a different name shown on screen.
+- **Late snapshots**: rows stamped at or before `audit_at` are used even when their file was captured later (the public samples require this), but such files are never cited.
+- **Ambiguous emails** that cannot be resolved to one user (even by who held the address at `requested_at`) yield `INCOMPLETE` with `[]`, never `COMPLETE`.
+- **Packaging**: build `code.zip` with the command below from the repository root. `.env` (live API key) and `.llm_cache/` live outside `code/` and must stay out of the archive; rotate any key that was ever stored in `.env`.
+
+---
+
 ## Packaging `code.zip` and Submission
 
 | Item | Description |

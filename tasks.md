@@ -98,6 +98,11 @@ Principles: only data from `dataset/`; nothing after `audit_at`; `reported_statu
 - **Acceptance criteria:** a clean `python3 code/main.py` run produces 518 valid rows; reports complete and free of secrets.
 - **Failures to document in `evaluation_report.md`:** partial account coverage via the `reported_at` window; anonymized analytics linked by a second-of-minute heuristic; ids absent from any visible source; the case_17 decoy (`account_6523`); unknown golden choice of cited evidence file (latest valid observation used); intent classification of 31 texts relying on the rule fallback until the LLM quota resets.
 
+### [X] TASK-11 — QA review fixes (`code/evaluation/review_findings.md`)
+- **Fixed:** screenshot rows now get canonical resource ids and are linked through the data catalog (including file-name labels) so case_50/53/61/63 report real findings instead of an empty `COMPLETE`; one-character OCR email repair; `COMPLETE` is only returned when at least one record is proven compliant, nothing is unjudged and the plan is non-empty (`validate_plan` and `validate_results` reject `COMPLETE` with `[]`); ambiguous emails are disambiguated by the holder at `requested_at`, else reported `INCOMPLETE` without aborting the batch; heuristics documented; regression cases custom_08..11.
+- **Not applied (measured):** requiring `captured_at <= audit_at` for state reading (F6) lowered sample exact rows 17 to 14 because the samples expect rows stamped before `audit_at` from later snapshots; late files are still never cited.
+- **Result:** samples 32/32 statuses, 17/32 exact rows (case_07 now also reports the catalog-linked `object_19`); full run 518 rows, no empty `COMPLETE`.
+
 ## Execution Order
 
 TASK-01 → TASK-02 → (TASK-03, TASK-06) → TASK-04 → TASK-05 → TASK-07 → TASK-08 → TASK-09 → TASK-10

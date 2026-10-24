@@ -364,13 +364,15 @@ def authorizes_deletion(case: Case, classifier: IntentClassifier | None = None) 
 #   be ``PRESENT``). ``ACCOUNT_TOMBSTONE`` uses its ``REDACT`` rule: the stable
 #   subject reference remains, direct identifiers must be gone.
 #
-# A resource whose state could not be reconstructed (``UNKNOWN``) is neither a
-# violation nor a proven-compliant record and is left out; a resource whose
-# category has no rule is skipped with a warning. Equality with the required
+# A resource whose state could not be reconstructed (``UNKNOWN``) or whose
+# category has no rule cannot be proven compliant: it is not reported as a
+# violation (nothing grounded to cite), but it blocks ``COMPLETE``. A resource
+# whose category has no rule is skipped with a warning. Equality with the required
 # state is strict: a ``RETAIN`` record that is ``ABSENT`` or a ``REDACT``
 # record that is ``ABSENT`` is a violation (the required copy is missing).
 #
-# The case is ``COMPLETE`` only when there is no violation. ``reported_status``
+# The case is ``COMPLETE`` only when at least one record was proven compliant,
+# there is no violation and nothing was left unjudged. ``reported_status``
 # is a workflow claim and is never consulted.
 
 
@@ -428,16 +430,30 @@ def apply_policy(
     indexed = rules_by_category(rules)
     violations: list[Treatment] = []
     compliant: list[Treatment] = []
+    unjudged: list[Resource] = []
     for resource in resources:
         treatment = treatment_for(resource, indexed)
         if treatment is None:
+            unjudged.append(resource)
             continue
         (compliant if treatment.is_compliant else violations).append(treatment)
-    if not violations and not compliant:
-        logger.warning("%s: no resource could be judged; reporting COMPLETE", case_id)
+    # COMPLETE needs proof: at least one judged record, no violation and no
+    # resource whose state could not be established.
+    provable = bool(compliant) and not unjudged
+    if not violations and not provable:
+        logger.warning(
+            "%s: compliance cannot be proven (%d judged, %d unjudged); INCOMPLETE",
+            case_id,
+            len(compliant),
+            len(unjudged),
+        )
     return Assessment(
         case_id=case_id,
-        status=DeletionStatus.INCOMPLETE if violations else DeletionStatus.COMPLETE,
+        status=(
+            DeletionStatus.COMPLETE
+            if provable and not violations
+            else DeletionStatus.INCOMPLETE
+        ),
         violations=violations,
         compliant=compliant,
     )

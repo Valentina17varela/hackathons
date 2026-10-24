@@ -169,7 +169,7 @@ class IdentityResolver:
     # -- public API ---------------------------------------------------------
 
     def resolve(self, case: Case) -> ResolvedIdentity:
-        user_id = self._find_user(case.email, case.audit_at)
+        user_id = self._find_user(case.email, case.audit_at, case.requested_at)
         return self._build(user_id, case.audit_at, case.email)
 
     def resolve_user(self, user_id: str, audit_at: datetime) -> ResolvedIdentity:
@@ -210,7 +210,9 @@ class IdentityResolver:
             )
         return versions
 
-    def _find_user(self, email: str, audit_at: datetime) -> str:
+    def _find_user(
+        self, email: str, audit_at: datetime, requested_at: datetime | None = None
+    ) -> str:
         key = normalize_email(email)
         owners = {
             user_id
@@ -221,6 +223,18 @@ class IdentityResolver:
             raise UnresolvedIdentityError(
                 f"email {email!r} is not linked to any user at {audit_at.isoformat()}"
             )
+        if len(owners) > 1 and requested_at is not None:
+            # A reassigned address belongs to whoever held it when the request was made.
+            active = {
+                user_id
+                for user_id in owners
+                for version in self._chain(user_id, "email")
+                if normalize_email(version.value) == key
+                and (version.introduced_at is None or version.introduced_at <= requested_at)
+                and (version.retired_at is None or version.retired_at > requested_at)
+            }
+            if len(active) == 1:
+                owners = active
         if len(owners) > 1:
             raise AmbiguousIdentityError(
                 f"email {email!r} maps to several users: {sorted(owners)}"

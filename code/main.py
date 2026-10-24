@@ -30,7 +30,7 @@ from typing import Iterable, Sequence
 
 from evaluator import IntentClassifier, assess
 from evidence_extractors import EvidenceIndex
-from identity_resolver import IdentityResolver
+from identity_resolver import AmbiguousIdentityError, IdentityResolver
 from investigator import Investigator
 from llm import LLMClient
 from models import (
@@ -99,7 +99,9 @@ class AuditPipeline:
     def run_case(self, case: Case) -> CaseResult:
         if not self._classifier.classify(case.request_text).authorizes_deletion:
             return CaseResult(case.case_id, DeletionStatus.NOT_APPLICABLE)
-        identity = self._resolver.resolve(case)
+        identity = self._resolve_identity(case)
+        if identity is None:
+            return CaseResult(case.case_id, DeletionStatus.INCOMPLETE)
         resources = self._investigator.investigate(
             identity, case.audit_at, reported_at=case.reported_at
         )
@@ -114,7 +116,20 @@ class AuditPipeline:
             resources=resources,
             citations=visible_citations(self._tables, case.audit_at),
         )
-        return CaseResult(case.case_id, assessment.status, tuple(steps))
+        status = assessment.status
+        if status is DeletionStatus.COMPLETE and not steps:
+            # A completed deletion must be proven by cited evidence.
+            logger.warning("%s: COMPLETE has no evidence-backed step; INCOMPLETE", case.case_id)
+            status = DeletionStatus.INCOMPLETE
+        return CaseResult(case.case_id, status, tuple(steps))
+
+    def _resolve_identity(self, case: Case):
+        """Identity of the request, or ``None`` when the email stays ambiguous."""
+        try:
+            return self._resolver.resolve(case)
+        except AmbiguousIdentityError as exc:
+            logger.warning("%s: %s; reporting INCOMPLETE without steps", case.case_id, exc)
+            return None
 
 
 def build_pipeline(
@@ -184,6 +199,10 @@ def validate_results(
     if ids != sorted(ids, key=case_sort_key):
         raise OutputValidationError("rows are not sorted by case_id")
     for result in results:
+        if result.status is DeletionStatus.COMPLETE and not result.steps:
+            raise OutputValidationError(
+                f"{result.case_id}: COMPLETE must have evidence-backed steps"
+            )
         try:
             validate_plan(result.status, result.steps)
             # round trip through the serialized form that the grader parses

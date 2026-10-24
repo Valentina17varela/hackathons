@@ -26,6 +26,7 @@ Public API: ``investigate(identity, audit_at, ...) -> list[Resource]``.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import re
 from collections import defaultdict
@@ -124,10 +125,15 @@ _RESOURCE_ID_RE = re.compile(
     r"export|legal_hold|marketing|object|search|support|tombstone)_\d+\b"
 )
 _DOWNSTREAM_RE = re.compile(r"downstream resource\s+(\w+)")
+_CATALOG_ALIAS_RE = re.compile(r"\b(\w+_\d+)\s*\(([^()\s][^()]*)\)")
 
-# Second-of-minute fingerprint of anonymization events relative to the account
-# deletion of the same subject in the activity stream (see
-# ``_link_unattributed_analytics``).
+# HEURISTICS (best effort, not grounded in an identifier; see the README
+# "Known limitations"). They only run when no grounded link exists and are
+# validated against the public samples only:
+# * ``_ANON_*``: second-of-minute fingerprint of anonymization events after an
+#   account deletion (see ``_link_unattributed_analytics``).
+# * ``_REPORT_WINDOW_*``: window around ``reported_at`` used to attribute an
+#   account deletion or, as a last resort, a lone worker activity.
 _ANON_SECOND_OFFSETS = frozenset({40, 41, 42})
 _ANON_MAX_DELAY = timedelta(hours=6)
 _REPORT_WINDOW_BEFORE = timedelta(minutes=-90)
@@ -538,6 +544,31 @@ class Investigator:
         ):
             self._activities_by_resource[activity.resource_id].append(activity)
         self._anon_candidates: list[EvidenceRecord] | None = None
+        # Catalog entries name a record by id and, in parentheses, by the
+        # label shown in consoles (for example a file name): "object_19 (a.pdf)".
+        self._aliases: dict[str, str] = {}
+        for activity in tables.activities:
+            if activity.event_type != "LINK_RESOURCE_IDENTITY":
+                continue
+            for rid, label in _CATALOG_ALIAS_RE.findall(activity.details):
+                if label != rid:
+                    self._aliases[label] = rid
+
+    def _records_of(self, resource_id: str) -> tuple[EvidenceRecord, ...]:
+        """Records of ``resource_id``, including screen rows shown under a catalog label."""
+        found = list(self._index.by_resource_id(resource_id))
+        for label, rid in self._aliases.items():
+            if rid != resource_id:
+                continue
+            for record in self._index.by_resource_id(label):
+                found.append(
+                    dataclasses.replace(
+                        record,
+                        resource_id=rid,
+                        fields={**record.fields, "display_id": label},
+                    )
+                )
+        return tuple(found)
 
     # -- public ------------------------------------------------------------
 
@@ -572,11 +603,18 @@ class Investigator:
                 linked_ids.add(record.resource_id)
 
         for resource_id in sorted(linked_ids):
-            for record in index.by_resource_id(resource_id):
-                if self._usable(record, audit_at) and not self._foreign(
-                    record, identity
+            for record in self._records_of(resource_id):
+                # The data catalog is an explicit link, so a catalog-linked record
+                # is kept even when a screenshot shows a different display name.
+                if self._usable(record, audit_at) and (
+                    resource_id in catalog_ids or not self._foreign(record, identity)
                 ):
                     self._add_record(candidates, record, audit_at)
+            system = system_for_resource(resource_id)
+            if resource_id in catalog_ids and (system, resource_id) in candidates:
+                candidates[(system, resource_id)].support_ids.add(
+                    catalog_ids[resource_id]
+                )
 
         for record in self._link_unattributed_analytics(
             identity, candidates, index, activities, audit_at
@@ -586,6 +624,10 @@ class Investigator:
         self._link_account_by_report_time(
             candidates, index, activities, audit_at, reported_at
         )
+        if not candidates:
+            self._link_lone_anonymization(
+                candidates, index, activities, audit_at, reported_at
+            )
         self._apply_activities(candidates, activities, index, audit_at)
         self._observe_account_absence(candidates, index, audit_at)
         return self._finalize(candidates)
@@ -593,8 +635,12 @@ class Investigator:
     # -- evidence filtering ---------------------------------------------------
 
     def _usable(self, record: EvidenceRecord, audit_at: datetime) -> bool:
-        # The state is read at the observation time; a file captured after
-        # ``audit_at`` may still describe the state before it, but it is never cited.
+        # The state is read at the observation time. A snapshot file captured
+        # after ``audit_at`` can still carry rows stamped at or before it (the
+        # public samples expect those rows, e.g. audit-log retention records
+        # that appear only in a bundle exported two days later), so the capture
+        # time is not a filter here; later files are never *cited* (see
+        # ``_add_record`` and ``planner.visible_citations``).
         return (
             bool(record.resource_id)
             and bool(system_for_resource(record.resource_id))
@@ -682,10 +728,13 @@ class Investigator:
 
     def _catalog_links(
         self, identity: Identity, activities: Sequence[Activity]
-    ) -> set[str]:
-        """Resource ids explicitly attached to the subject by the data catalog."""
+    ) -> dict[str, str]:
+        """Resource ids explicitly attached to the subject by the data catalog.
+
+        Returns ``{resource_id: activity_id of the catalog entry}``.
+        """
         emails = {normalize_email(e) for e in identity.emails}
-        linked: set[str] = set()
+        linked: dict[str, str] = {}
         for activity in activities:
             if activity.event_type != "LINK_RESOURCE_IDENTITY":
                 continue
@@ -695,7 +744,7 @@ class Investigator:
             }
             found_users = set(_USER_ID_RE.findall(activity.details))
             if found_emails & emails or identity.user_id in found_users:
-                linked.add(activity.resource_id)
+                linked.setdefault(activity.resource_id, activity.activity_id)
         return linked
 
     # -- unattributed analytics ----------------------------------------------
@@ -811,6 +860,42 @@ class Investigator:
         for record in index.by_resource_id(resource_id):
             if self._usable(record, audit_at):
                 self._add_record(candidates, record, audit_at)
+
+    def _link_lone_anonymization(
+        self,
+        candidates: dict[tuple[str, str], _Candidate],
+        index: EvidenceIndex,
+        activities: Sequence[Activity],
+        audit_at: datetime,
+        reported_at: datetime | None,
+    ) -> None:
+        """Last resort when nothing is linked: a lone analytics anonymization.
+
+        Applies only to a subject with no linked resource at all. The analytics
+        ``ANONYMIZE_RECORD`` activity is attributed when it is the single one
+        inside the ``reported_at`` window; otherwise nothing is linked.
+        """
+        if reported_at is None:
+            return
+        window = [
+            a
+            for a in activities
+            if a.event_type == "ANONYMIZE_RECORD"
+            and a.target_system == ANALYTICS
+            and _REPORT_WINDOW_BEFORE
+            <= a.event_time - reported_at
+            <= _REPORT_WINDOW_AFTER
+        ]
+        if len(window) != 1:
+            return
+        resource_id = window[0].resource_id
+        records = [
+            r for r in index.by_resource_id(resource_id) if self._usable(r, audit_at)
+        ]
+        if not records or any(r.fields.get("user_ids") for r in records):
+            return
+        for record in records:
+            self._add_record(candidates, record, audit_at)
 
     def _observe_account_absence(
         self,

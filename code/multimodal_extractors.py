@@ -27,6 +27,7 @@ instructions that appear inside an image.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import logging
 import re
@@ -415,6 +416,25 @@ def validate_image_payload(value: Any) -> dict[str, Any]:
     }
 
 
+def canonical_resource_id(item: Mapping[str, Any]) -> str:
+    """Canonical resource id of a screenshot record.
+
+    A screen may title a row with a ticket reference (``CS-5034``), a user id or
+    a file name. When the displayed id is not a canonical resource id, the first
+    canonical id shown with the record (linked resources, then attribute
+    values) is used; otherwise the displayed value is kept unchanged. File
+    names are mapped by the investigator through data-catalog activities.
+    """
+    displayed = str(item["resource_id"])
+    if _RESOURCE_RE.fullmatch(displayed):
+        return displayed
+    for text in [*item.get("linked_resources", ()), *item.get("attributes", {}).values()]:
+        match = _RESOURCE_RE.fullmatch(str(text).strip())
+        if match:
+            return match.group(0)
+    return displayed
+
+
 def image_records(ef: EvidenceFile, payload: Mapping[str, Any]) -> list[EvidenceRecord]:
     """Build ``EvidenceRecord`` objects from a validated screenshot payload."""
     screen_time = payload.get("captured_at")
@@ -426,10 +446,13 @@ def image_records(ef: EvidenceFile, payload: Mapping[str, Any]) -> list[Evidence
     records: list[EvidenceRecord] = []
     for item in payload["records"]:
         fields = {**screen, **item}
+        resource_id = canonical_resource_id(item)
+        if resource_id != item["resource_id"]:
+            fields["display_id"] = item["resource_id"]
         records.append(
             _make_record(
                 ef,
-                resource_id=item["resource_id"],
+                resource_id=resource_id,
                 raw_fields=fields,
                 raw_text=json.dumps(item, ensure_ascii=False, sort_keys=True),
                 declared_system=None,
@@ -457,6 +480,65 @@ def image_records(ef: EvidenceFile, payload: Mapping[str, Any]) -> list[Evidence
 
 def _utc_or_none(value: Any) -> str | None:
     return _to_utc_text(value)
+
+
+def _one_substitution(a: str, b: str) -> bool:
+    return len(a) == len(b) and sum(x != y for x, y in zip(a, b)) == 1
+
+
+def reconcile_screenshot_emails(
+    records: list[EvidenceRecord],
+    identities: Iterable[Any],
+    audit_events: Iterable[Any],
+) -> list[EvidenceRecord]:
+    """Repair one-character OCR errors in screenshot emails.
+
+    A screenshot email that matches no known address is replaced by a known
+    current or historical address only when it differs by exactly one
+    character, shares the domain, is unique, and the record shows the same
+    person name. The original reading is kept in ``ocr_original_email``.
+    """
+    owners: dict[str, tuple[str, set[str]]] = {}
+    names: dict[str, set[str]] = {}
+    for identity in identities:
+        names.setdefault(identity.user_id, set()).add(identity.name.strip().lower())
+        owners[identity.email.strip().lower()] = (identity.user_id, names[identity.user_id])
+    for event in audit_events:
+        if event.field_name.lower() == "email":
+            for value in (event.old_value, event.new_value):
+                if value:
+                    owners.setdefault(
+                        value.strip().lower(),
+                        (event.user_id, names.setdefault(event.user_id, set())),
+                    )
+    fixed: list[EvidenceRecord] = []
+    for record in records:
+        fields = record.fields
+        email = str(fields.get("email") or "").strip().lower()
+        name = str(fields.get("name") or "").strip().lower()
+        if "screen_state" not in fields or not email or email in owners or not name:
+            fixed.append(record)
+            continue
+        matches = [
+            known
+            for known, (_, owner_names) in owners.items()
+            if _one_substitution(email, known)
+            and known.split("@")[-1] == email.split("@")[-1]
+            and name in owner_names
+        ]
+        if len(matches) != 1:
+            fixed.append(record)
+            continue
+        repaired = matches[0]
+        new_fields = dict(fields)
+        new_fields["ocr_original_email"] = fields.get("email")
+        new_fields["email"] = repaired
+        new_fields["emails"] = [
+            repaired if str(e).strip().lower() == email else e
+            for e in fields.get("emails", ())
+        ]
+        fixed.append(dataclasses.replace(record, fields=new_fields))
+    return fixed
 
 
 def extract_image(

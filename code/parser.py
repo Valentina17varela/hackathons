@@ -423,14 +423,20 @@ def extract_multimodal(
     ``strict`` is true; otherwise it is skipped with a warning and its
     ``file_id`` is appended to ``skipped``. Order follows the manifest.
     """
-    from multimodal_extractors import extract_multimodal_files
+    from multimodal_extractors import (
+        extract_multimodal_files,
+        reconcile_screenshot_emails,
+    )
 
-    return extract_multimodal_files(
+    records = extract_multimodal_files(
         tables.evidence_files,
         tables.dataset_dir,
         client,
         strict=strict,
         skipped=skipped,
+    )
+    return reconcile_screenshot_emails(
+        records, tables.identities, tables.audit_events
     )
 
 

@@ -85,6 +85,15 @@ def _expect_valid_plan(result: CaseResult) -> list[str]:
     return plan_problems(result.status, result.steps)
 
 
+def _expect_resource(resource_id: str) -> Check:
+    def check(result: CaseResult) -> list[str]:
+        if any(step.resource_id == resource_id for step in result.steps):
+            return []
+        return [f"no step mentions {resource_id}"]
+
+    return check
+
+
 def _expect_no_late_citations(index: CitationIndex, case: Case) -> Check:
     def check(result: CaseResult) -> list[str]:
         return index.violations(result.steps, case.audit_at)
@@ -244,6 +253,34 @@ def build_custom_cases(tables: Tables, pipeline: AuditPipeline) -> list[CustomCa
             common(early),
         )
     )
+
+    # Regression cases for the QA review (screenshot-only resources).
+    evaluation = {case.case_id: case for case in tables.cases}
+    for number, (case_id, resource_id, why) in enumerate(
+        (
+            ("case_50", "analytics_7438", "profile row titled with a user id"),
+            ("case_53", "support_1034", "ticket row titled with a CS-xxxx reference"),
+            ("case_61", "object_19", "file shown by name, mapped by the data catalog"),
+            ("case_63", "marketing_001", "catalog-linked record shown under another name"),
+        ),
+        start=8,
+    ):
+        if case_id not in evaluation:
+            continue
+        screen_case = replace(evaluation[case_id], case_id=f"custom_{number:02d}")
+        cases.append(
+            CustomCase(
+                f"custom_{number:02d}_screenshot_only_{resource_id}",
+                f"Evaluation {case_id}: {why}; the record exists only in a screenshot.",
+                f"INCOMPLETE with a finding on `{resource_id}` (never COMPLETE with no steps)",
+                screen_case,
+                (
+                    _expect_status(DeletionStatus.INCOMPLETE),
+                    _expect_resource(resource_id),
+                    *common(screen_case),
+                ),
+            )
+        )
 
     return cases
 

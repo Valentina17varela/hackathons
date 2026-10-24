@@ -2,7 +2,8 @@
 
 * every cited evidence id exists in the participant-visible data;
 * nothing cited was captured or recorded after the case's ``audit_at``;
-* the plan satisfies the step contract (``planner.validate_plan``).
+* the plan satisfies the step contract (``planner.validate_plan``), which
+  includes: a ``COMPLETE`` answer always carries evidence-backed steps.
 """
 
 from __future__ import annotations
