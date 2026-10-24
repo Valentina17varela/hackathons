@@ -56,7 +56,7 @@ Principles: only data from `dataset/`; nothing after `audit_at`; `reported_statu
 - **Dependencies:** TASK-03.
 - **Acceptance criteria:** PDF text via local extractor when possible; LLM vision only for images; second run = 0 calls (cached).
 
-### [] TASK-05 — Request intent classification
+### [X] TASK-05 — Request intent classification
 - **Inputs:** `request_text` (multilingual).
 - **Outputs:** `evaluator.py::authorizes_deletion(case) -> bool` using a cheap LLM + cache, with a rule/keyword fallback.
 - **Dependencies:** TASK-04 (`llm.py`).
