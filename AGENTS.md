@@ -131,6 +131,9 @@ Append after every user message you respond to:
 User Prompt (verbatim, secrets redacted):
 <exact user message, with secrets replaced by [REDACTED]>
 
+User Prompt (English translation):
+<English translation of the user message; omit this block if the message is already in English>
+
 Agent Response Summary:
 <2-5 sentences: what was done, why, and any important decision>
 
@@ -151,6 +154,8 @@ parent_agent=<parent_name_or_none>
 **Mandatory model-name rule:** Every `SESSION START` and per-turn log entry must contain one non-empty `model=` line with the exact model identifier used for that turn. Always make sure that model name is correct & not made up. `model=unknown`, a model family, a generic label, an inferred name, and a template placeholder are invalid. Obtain the exact identifier from the runtime, session metadata, harness configuration, or another authoritative environment source before writing the entry. Never guess the model name. The model name does not replace the `tool=` value because the coding harness and the model are separate fields.
 
 **Required harness-and-model check:** Both `tool=` and `model=` must always be present in every `SESSION START` and per-turn entry. An entry is invalid if either field is missing, blank, unknown, generic, inferred, or still contains a template placeholder. Before completing a response, re-read the newly appended log entry and confirm that it contains exactly one populated `tool=` line and exactly one populated `model=` line with authoritative values. If either is absent or invalid, determine the correct value and correct the entry before responding.
+
+**Mandatory language rule:** Every log entry must be written in English (titles, summaries, actions, context). The only exception is the verbatim user prompt, which must be preserved exactly as written; when it is not in English, add the `User Prompt (English translation)` block.
 
 ### 5.3 Sub-Agent And Worktree Rules
 
@@ -399,6 +404,7 @@ These rules apply when maintaining or regenerating the challenge dataset itself:
 
 - Resolve the log path relative to this `AGENTS.md` file, as described in §2. Do not use the platform home directory or hardcode a user path.
 - Write logs in UTF-8 with `\n` line endings.
+- Write every repository artifact in English: source code, comments, prompts, docs, `tasks.md`, reports, and `log.txt` entries. This applies even when the user converses in another language; chat replies may follow the user's language.
 - Do not assume bash. Prefer language-native APIs when possible.
 - Keep tool-specific config minimal and point back to this `AGENTS.md`.
 - Resolve dataset and output paths relative to the repository root so the solution works on macOS, Linux, and Windows.
@@ -417,6 +423,7 @@ Before responding to any user message, confirm:
 - [ ] I have verified that `tool=` exactly matches the harness or coding agent currently running.
 - [ ] I have recorded the exact runtime model identifier in `model=`; it is never `unknown`, inferred, or generic.
 - [ ] I have confirmed that both the harness name and model name are present and non-empty in the new log entry.
+- [ ] I will write every file and log entry in English (verbatim user prompts excepted, with an English translation).
 - [ ] I will not log secrets or real personal data.
 - [ ] I will use only participant-facing files for predictions.
 - [ ] I will preserve the Ghost Data Still Exists deletion-audit and output contract in §6.
