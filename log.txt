@@ -395,3 +395,23 @@ branch=main
 repo_root=/Users/valentinavarela/Desktop/Coding/hackerrank-orchestrate-october26
 worktree=main
 parent_agent=none
+
+## [2026-10-24T23:59:00Z] Rewrite README.md for submission
+
+User Prompt (verbatim, secrets redacted):
+You are a Principal Technical Writer and Senior Software Engineer. Your task is to write a comprehensive, professional, and beautifully structured `README.md` for our submission to the HackerRank challenge "Ghost Data Still Exists". (Full prompt specified sections: title/overview with the $2.4M hook, Architecture & Design (SDD), Project Structure of code/, How It Works (identity resolution, evidence investigation, policy engine and planner with FINDING -> REMEDIATION -> VERIFICATION ordering), Setup & Quick Start (python3 code/main.py), Evaluation & Performance referencing code/evaluation/evaluation_report.md and usage_report.md. Strict rules: rely only on actual implementation details, match the project contract, write the README at the repository root.)
+
+Agent Response Summary:
+Rewrote README.md at the repository root from the actual code docstrings (models, parser, extractors, identity_resolver, investigator, evaluator, planner, llm, main, evaluation runner) and the generated evaluation and usage reports. Sections: overview and highlights, SDD architecture with data contracts, code tree, detailed core logic, setup/run commands and CLI options, evaluation metrics and results (32/32 sample status accuracy, 11/11 custom cases, token usage), known limitations, and packaging with the official submission URL. Corrected the custom-case count from the previous README (7 -> 11, per the current report).
+
+Actions:
+* Read code/*.py docstrings, code/evaluation/*.md, tasks.md, problem_statement.md
+* Removed and recreated README.md
+
+Context:
+tool=GitHub Copilot
+model=Claude Opus 5.5
+branch=main
+repo_root=/Users/valentinavarela/Desktop/Coding/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none
