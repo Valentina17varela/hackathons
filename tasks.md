@@ -62,7 +62,7 @@ Principles: only data from `dataset/`; nothing after `audit_at`; `reported_statu
 - **Dependencies:** TASK-04 (`llm.py`).
 - **Acceptance criteria:** access, correction, export, marketing opt-out → `NOT_APPLICABLE`; 100% agreement with samples.
 
-### [] TASK-06 — Identity resolution
+### [X] TASK-06 — Identity resolution
 - **Inputs:** `user_identities.csv`, `user_audit_log.csv`, case email, `audit_at`.
 - **Outputs:** `identity_resolver.py::resolve(case) -> Identity` (user_id + all current/historical email, phone, name, email_hash values with audit IDs).
 - **Dependencies:** TASK-02.
