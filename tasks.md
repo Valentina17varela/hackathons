@@ -68,7 +68,7 @@ Principles: only data from `dataset/`; nothing after `audit_at`; `reported_statu
 - **Dependencies:** TASK-02.
 - **Acceptance criteria:** historical emails resolve to the correct user; no collisions with decoys.
 
-### [] TASK-07 — Investigation and state reconstruction
+### [X] TASK-07 — Investigation and state reconstruction
 - **Inputs:** `Identity`, evidence index, `system_activity.csv`, `audit_at`.
 - **Outputs:** `investigator.py::investigate() -> list[Resource]` with data category, true state at `audit_at` (present/absent/redacted/anonymized), proving evidence (`file_id`/`activity_id`/`audit_id`), active sync/import flows and restore paths.
 - **Dependencies:** TASK-03, TASK-04, TASK-06.
