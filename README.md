@@ -12,32 +12,87 @@ Read [`problem_statement.md`](./problem_statement.md) for the complete challenge
 
 ---
 
-## Quick Start
+## Solution
 
-Clone the repository and move into the project directory:
+A deterministic Python pipeline that uses an LLM only where code cannot decide: the multilingual meaning of the request text and the contents of application screenshots. Every accepted model answer is cached on disk, so a second run needs no provider call and no API key.
 
-```bash
-git clone https://github.com/interviewstreet/hackerrank-orchestrate-october26.git
-cd hackerrank-orchestrate-october26
+```mermaid
+flowchart LR
+  A[parser.py] --> B[identity_resolver.py]
+  A --> C[investigator.py]
+  B --> C
+  C --> D[evaluator.py]
+  D --> E[planner.py]
+  E --> F[main.py -> output.csv]
 ```
 
-Start your AI coding tool from the **repository root** so it automatically reads [`AGENTS.md`](./AGENTS.md) and logs your session turns to `log.txt` in the root directory.
+| Module (`code/`) | Responsibility |
+| --- | --- |
+| `models.py` | Contracts: cases, steps, allowed phases, operations and states, and their canonical order |
+| `parser.py`, `evidence_extractors.py`, `multimodal_extractors.py` | Load the CSVs; extract evidence from SQL (executed in in-memory SQLite), JSON, text, logs, PDFs (local text extraction) and images (cached LLM vision) |
+| `identity_resolver.py` | Request email (current or historical) to `user_id`, plus every identifier the person had at `audit_at` |
+| `investigator.py` | Rebuild the state of every linked record at `audit_at` from evidence only; detect active data flows, restore paths and recreation |
+| `evaluator.py` | Intent gate (`NOT_APPLICABLE`), then apply `deletion_rules.csv` to each resource and decide `COMPLETE` / `INCOMPLETE` |
+| `planner.py` | Build the ordered `FINDING` / `REMEDIATION` / `VERIFICATION` steps with evidence ids |
+| `llm.py` | LLM client (Anthropic, OpenAI or Groq), response cache, token and cost counter |
+| `main.py` | Run all cases, validate the output contract, write `output.csv` atomically |
+| `evaluation/` | Evaluation runner, custom cases, and the generated reports |
 
-Build your solution in `code/main.py`, or use another language and document its setup and run command clearly in your README.
+Rules the pipeline follows: only files under `dataset/` are read; nothing later than a case's `audit_at` is used or cited; `reported_status` and activity results are treated as claims, not proof; no labels are hardcoded.
 
-Your solution must:
+## Setup
 
-- Read the input files from `dataset/`
-- Generate one prediction row for every request in `dataset/deletion_requests.csv`
-- Write the final predictions to `output.csv` in the repository root
+Requirements:
 
-Run the starter Python entry point with:
+- Python 3.10 or newer (developed and run with 3.13). The code uses only the standard library; there is nothing to `pip install`.
+- A local PDF text extractor for the evidence PDFs: `pdftotext` from poppler (`brew install poppler` on macOS, `apt install poppler-utils` on Debian/Ubuntu), or `pip install pypdf`.
+- An LLM API key, needed only when an answer is not already in the cache (`.llm_cache/`). Without a key, uncached request texts are classified by a built-in multilingual keyword fallback, and uncached screenshots are skipped with a warning (their evidence is then missing, which lowers recall).
+
+Create an uncommitted `.env` file at the repository root (or export the variables). Never commit it.
+
+```text
+LLM_PROVIDER=groq                 # anthropic, openai or groq (default: whichever key is set)
+GROQ_API_KEY=...                  # or ANTHROPIC_API_KEY / OPENAI_API_KEY
+LLM_MODEL=...                     # optional, provider-specific default otherwise
+LLM_CACHE_DIR=...                 # optional, default <repo>/.llm_cache
+LLM_PRICE_INPUT_PER_MTOK=...      # optional, USD per million tokens, for cost estimates
+LLM_PRICE_OUTPUT_PER_MTOK=...
+```
+
+## Run
+
+From the repository root:
 
 ```bash
 python3 code/main.py
 ```
 
-The blank template at `dataset/output.csv` is provided as a reference. Your final generated file for submission must be the root-level `output.csv`.
+This audits the 518 requests of `dataset/deletion_requests.csv` and writes `output.csv` (header `case_id,deletion_status,steps_json`, one row per case, sorted by `case_id`). The output is validated before anything is written: if a case fails or the contract is violated, the process exits with status 1 and leaves any existing `output.csv` untouched. With a warm cache a run takes seconds to a few minutes; a cold run makes one short model call per distinct request text plus one per screenshot and is limited by the provider's rate limits.
+
+Useful options:
+
+```bash
+python3 code/main.py --cases sample --output /tmp/sample_run.csv   # the 32 public samples
+python3 code/main.py --dataset path/to/dataset                     # another dataset directory
+```
+
+## Evaluate
+
+```bash
+python3 code/evaluation/main.py              # full evaluation, rewrites both reports
+python3 code/evaluation/main.py --skip-full  # samples and custom cases only (about as fast as a sample run)
+```
+
+The runner scores the 32 public samples against `dataset/sample_output.csv` (status, step, field and sequence accuracy), runs seven custom cases built from those samples, runs all 518 requests to check the output contract and the `audit_at` citation rule, cross-checks the root `output.csv`, and writes:
+
+- [`code/evaluation/evaluation_report.md`](./code/evaluation/evaluation_report.md): accuracy metrics, custom cases, failures found and improvements made;
+- [`code/evaluation/usage_report.md`](./code/evaluation/usage_report.md): model calls, tokens and estimated cost of the full-dataset run.
+
+Reports never contain API keys: the writer refuses to save a report that contains the value of a credential variable.
+
+## Contract summary
+
+The blank template at `dataset/output.csv` is a reference; the file to submit is the generated root-level `output.csv`. See [`problem_statement.md`](./problem_statement.md) for the full contract and [`tasks.md`](./tasks.md) for the design notes and known limits of each module.
 
 
 ## Dataset
