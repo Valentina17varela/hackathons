@@ -230,7 +230,10 @@ class IdentityResolver:
                 for user_id in owners
                 for version in self._chain(user_id, "email")
                 if normalize_email(version.value) == key
-                and (version.introduced_at is None or version.introduced_at <= requested_at)
+                and (
+                    version.introduced_at is None
+                    or version.introduced_at <= requested_at
+                )
                 and (version.retired_at is None or version.retired_at > requested_at)
             }
             if len(active) == 1:

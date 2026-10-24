@@ -435,9 +435,7 @@ def extract_multimodal(
         strict=strict,
         skipped=skipped,
     )
-    return reconcile_screenshot_emails(
-        records, tables.identities, tables.audit_events
-    )
+    return reconcile_screenshot_emails(records, tables.identities, tables.audit_events)
 
 
 def build_evidence_index(records: Iterable[EvidenceRecord]):

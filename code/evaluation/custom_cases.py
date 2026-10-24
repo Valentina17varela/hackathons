@@ -261,7 +261,11 @@ def build_custom_cases(tables: Tables, pipeline: AuditPipeline) -> list[CustomCa
             ("case_50", "analytics_7438", "profile row titled with a user id"),
             ("case_53", "support_1034", "ticket row titled with a CS-xxxx reference"),
             ("case_61", "object_19", "file shown by name, mapped by the data catalog"),
-            ("case_63", "marketing_001", "catalog-linked record shown under another name"),
+            (
+                "case_63",
+                "marketing_001",
+                "catalog-linked record shown under another name",
+            ),
         ),
         start=8,
     ):

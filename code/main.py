@@ -119,7 +119,9 @@ class AuditPipeline:
         status = assessment.status
         if status is DeletionStatus.COMPLETE and not steps:
             # A completed deletion must be proven by cited evidence.
-            logger.warning("%s: COMPLETE has no evidence-backed step; INCOMPLETE", case.case_id)
+            logger.warning(
+                "%s: COMPLETE has no evidence-backed step; INCOMPLETE", case.case_id
+            )
             status = DeletionStatus.INCOMPLETE
         return CaseResult(case.case_id, status, tuple(steps))
 
@@ -128,7 +130,9 @@ class AuditPipeline:
         try:
             return self._resolver.resolve(case)
         except AmbiguousIdentityError as exc:
-            logger.warning("%s: %s; reporting INCOMPLETE without steps", case.case_id, exc)
+            logger.warning(
+                "%s: %s; reporting INCOMPLETE without steps", case.case_id, exc
+            )
             return None
 
 

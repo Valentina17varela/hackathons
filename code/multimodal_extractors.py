@@ -428,7 +428,10 @@ def canonical_resource_id(item: Mapping[str, Any]) -> str:
     displayed = str(item["resource_id"])
     if _RESOURCE_RE.fullmatch(displayed):
         return displayed
-    for text in [*item.get("linked_resources", ()), *item.get("attributes", {}).values()]:
+    for text in [
+        *item.get("linked_resources", ()),
+        *item.get("attributes", {}).values(),
+    ]:
         match = _RESOURCE_RE.fullmatch(str(text).strip())
         if match:
             return match.group(0)
@@ -502,7 +505,10 @@ def reconcile_screenshot_emails(
     names: dict[str, set[str]] = {}
     for identity in identities:
         names.setdefault(identity.user_id, set()).add(identity.name.strip().lower())
-        owners[identity.email.strip().lower()] = (identity.user_id, names[identity.user_id])
+        owners[identity.email.strip().lower()] = (
+            identity.user_id,
+            names[identity.user_id],
+        )
     for event in audit_events:
         if event.field_name.lower() == "email":
             for value in (event.old_value, event.new_value):
