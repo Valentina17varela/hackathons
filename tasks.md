@@ -38,7 +38,7 @@ Principles: only data from `dataset/`; nothing after `audit_at`; `reported_statu
 - **Dependencies:** none.
 - **Acceptance criteria:** phase/operation/state combinations are exactly the allowed ones; invalid steps cannot be built.
 
-### [] TASK-02 — CSV loading and time utilities
+### [X] TASK-02 — CSV loading and time utilities
 - **Inputs:** the 8 CSVs in `dataset/`.
 - **Outputs:** `parser.py::load_tables()`; ISO-8601 UTC parsing; `at_or_before(audit_at)` filter.
 - **Dependencies:** TASK-01.

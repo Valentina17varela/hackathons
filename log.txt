@@ -91,3 +91,25 @@ branch=main
 repo_root=/Users/valentinavarela/Desktop/Coding/hackerrank-orchestrate-october26
 worktree=main
 parent_agent=orchestrator
+
+## [2026-10-24T20:45:00Z] TASK-02: CSV loading and time utilities (code/parser.py)
+
+User Prompt (verbatim, secrets redacted):
+You are an AI coding sub-agent working on the HackerRank challenge "Ghost Data Still Exists". Your parent agent is orchestrating the project using Specification-Driven Development (SDD). ### Your Specific Assignment: **TASK-02 — CSV loading and time utilities** - Inputs: the 8 CSVs in dataset/. - Outputs: parser.py::load_tables(); ISO-8601 UTC parsing; at_or_before(audit_at) filter. - Dependencies: TASK-01. - Acceptance criteria: 518 cases, 32 samples, 94 manifest evidence files, 4011 activities, 306 audit events loaded without loss. ### Strict Rules & Constraints: 1. Follow the project contract in problem_statement.md and AGENTS.md. 2. Write clean, modular, and well-typed Python code. 3. Do NOT modify files outside the scope of this specific task unless strictly required. 4. If you encounter missing dependencies or ambiguity, stop and report the issue immediately. 5. Task Completion Update: Once this task is fully completed and verified, you MUST edit the tasks.md file in the root directory to mark this task as checked ([X] instead of [ ]). Execute this task completely now.
+
+Agent Response Summary:
+Created code/parser.py with parse_utc/format_utc, an inclusive at_or_before(items, audit_at, key) filter, typed immutable row records (UserIdentity, AuditEvent, Activity, EvidenceFile, SampleOutput), and load_tables() returning a Tables container with header checks and duplicate-id detection. Verified 518 cases, 32 samples, 32 sample outputs, 94 evidence files, 4011 activities, 306 audit events, 850 identities and 15 rules load losslessly (raw string round-trip), that all manifest paths exist, and that the time filter is inclusive and rejects naive timestamps. Marked TASK-02 done in tasks.md.
+
+Actions:
+* Created code/parser.py
+* Ran an ad-hoc Python verification script (removed afterwards)
+* Edited tasks.md (TASK-02 checked)
+* Appended this entry to log.txt
+
+Context:
+tool=GitHub Copilot
+model=Claude Sonnet 5.5
+branch=main
+repo_root=/Users/valentinavarela/Desktop/Coding/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=orchestrator
