@@ -287,7 +287,11 @@ def _analytics_state(fields: Mapping[str, Any]) -> ObservedState | None:
         return state
     if not _is_null(fields.get("matched_value")) or fields.get("detector"):
         return ObservedState.PRESENT
-    count = _as_int(fields.get("direct_identifiers")) if "direct_identifiers" in fields else None
+    count = (
+        _as_int(fields.get("direct_identifiers"))
+        if "direct_identifiers" in fields
+        else None
+    )
     if count is not None:
         return ObservedState.ANONYMIZED if count == 0 else ObservedState.PRESENT
     if _has_direct_identifier(fields) or not _is_null(fields.get("lookup_key")):
@@ -320,11 +324,21 @@ def _support_state(fields: Mapping[str, Any]) -> ObservedState | None:
     if isinstance(text, str) and not _is_null(text):
         if "[redacted]" in text.lower() and not _text_has_identifier(text):
             return ObservedState.REDACTED
-        return ObservedState.PRESENT if _text_has_identifier(text) else ObservedState.REDACTED
+        return (
+            ObservedState.PRESENT
+            if _text_has_identifier(text)
+            else ObservedState.REDACTED
+        )
     if any(not _is_null(fields.get(key)) for key in _SUPPORT_PII_KEYS):
         return ObservedState.PRESENT
-    if _has_key(fields, "requester_email", "message_excerpt", "ticket_id", "file_name", "file"):
-        return ObservedState.REDACTED if not _has_direct_identifier(fields) else ObservedState.PRESENT
+    if _has_key(
+        fields, "requester_email", "message_excerpt", "ticket_id", "file_name", "file"
+    ):
+        return (
+            ObservedState.REDACTED
+            if not _has_direct_identifier(fields)
+            else ObservedState.PRESENT
+        )
     return None
 
 
@@ -337,13 +351,21 @@ def _backup_state(fields: Mapping[str, Any]) -> ObservedState | None:
     state = _generic_state(fields)
     if state in (ObservedState.ACTIVE, ObservedState.BLOCKED):
         return state
-    allowed = _truthy(fields.get("restore_allowed")) if "restore_allowed" in fields else None
+    allowed = (
+        _truthy(fields.get("restore_allowed")) if "restore_allowed" in fields else None
+    )
     if allowed is not None:
         return ObservedState.ACTIVE if allowed else ObservedState.BLOCKED
     decision = fields.get("decision")
-    if isinstance(decision, str) and decision.strip().lower() in {"deny", "denied", "block"}:
+    if isinstance(decision, str) and decision.strip().lower() in {
+        "deny",
+        "denied",
+        "block",
+    }:
         return ObservedState.BLOCKED
-    block = _truthy(fields.get("deletion_block")) if "deletion_block" in fields else None
+    block = (
+        _truthy(fields.get("deletion_block")) if "deletion_block" in fields else None
+    )
     eligible = _truthy(fields.get("eligible")) if "eligible" in fields else None
     if block is True:
         return ObservedState.BLOCKED
@@ -380,7 +402,11 @@ def _export_state(fields: Mapping[str, Any]) -> ObservedState | None:
             flag = _truthy(fields[key])
             if flag is not None:
                 return ObservedState.PRESENT if flag else ObservedState.ABSENT
-    return ObservedState.PRESENT if _has_key(fields, "file_name", "file", "owner_email", "object_key") else None
+    return (
+        ObservedState.PRESENT
+        if _has_key(fields, "file_name", "file", "owner_email", "object_key")
+        else None
+    )
 
 
 def _tombstone_state(fields: Mapping[str, Any]) -> ObservedState | None:
@@ -388,10 +414,14 @@ def _tombstone_state(fields: Mapping[str, Any]) -> ObservedState | None:
     state = _generic_state(fields)
     if state is ObservedState.ABSENT:
         return state
-    keys = [k for k in ("name", "full_name", "email", "phone", "email_hash") if k in fields]
+    keys = [
+        k for k in ("name", "full_name", "email", "phone", "email_hash") if k in fields
+    ]
     if any(not _is_null(fields.get(k)) for k in keys):
         return ObservedState.PRESENT
-    if keys or _has_key(fields, "subject_reference", "account_status", "collection_name"):
+    if keys or _has_key(
+        fields, "subject_reference", "account_status", "collection_name"
+    ):
         return ObservedState.REDACTED
     return state
 
@@ -418,16 +448,29 @@ def _record_state(system_id: str, fields: Mapping[str, Any]) -> ObservedState | 
         hit = fields.get("result")
         if hit is not None and str(hit).lower() == "miss":
             return None
-        if _has_key(fields, "document.email", "index_name", "index", "email", "match_key"):
+        if _has_key(
+            fields, "document.email", "index_name", "index", "email", "match_key"
+        ):
             return ObservedState.PRESENT
         return None
     if system_id in (SECURITY, LEGAL):
-        if _has_key(fields, "event_name", "event_code", "retention_reason", "retention_until",
-                    "integrity_check", "subject_reference", "subject_ref", "order_reference"):
+        if _has_key(
+            fields,
+            "event_name",
+            "event_code",
+            "retention_reason",
+            "retention_until",
+            "integrity_check",
+            "subject_reference",
+            "subject_ref",
+            "order_reference",
+        ):
             return ObservedState.PRESENT
         return None
     if system_id == ACCOUNT:
-        if _has_direct_identifier(fields) or _has_key(fields, "account_status", "customer_reference"):
+        if _has_direct_identifier(fields) or _has_key(
+            fields, "account_status", "customer_reference"
+        ):
             return ObservedState.PRESENT
         return None
     if _has_direct_identifier(fields):
@@ -443,7 +486,10 @@ def _category(system_id: str, fields: Mapping[str, Any]) -> str | None:
             or "attachment" in str(fields.get("collection", "")).lower()
             or "attachment" in str(fields.get("record_type", "")).lower()
             or "attachment" in str(fields.get("events", "")).lower()
-            or (_has_key(fields, "file", "file_name") and not _has_key(fields, "message_text"))
+            or (
+                _has_key(fields, "file", "file_name")
+                and not _has_key(fields, "message_text")
+            )
         )
         return "SUPPORT_ATTACHMENT" if attachment else "SUPPORT_MESSAGE"
     if system_id == ANALYTICS:
@@ -479,7 +525,9 @@ class Investigator:
             for ef in tables.evidence_files
         }
         self._activities_by_resource: dict[str, list[Activity]] = defaultdict(list)
-        for activity in sorted(tables.activities, key=lambda a: (a.event_time, a.activity_id)):
+        for activity in sorted(
+            tables.activities, key=lambda a: (a.event_time, a.activity_id)
+        ):
             self._activities_by_resource[activity.resource_id].append(activity)
         self._anon_candidates: list[EvidenceRecord] | None = None
 
@@ -508,12 +556,18 @@ class Investigator:
         catalog_ids = self._catalog_links(identity, activities)
         linked_ids.update(catalog_ids)
         for record in visible:
-            if record.evidence_id in file_ids and record.resource_id and not self._foreign(record, identity):
+            if (
+                record.evidence_id in file_ids
+                and record.resource_id
+                and not self._foreign(record, identity)
+            ):
                 linked_ids.add(record.resource_id)
 
         for resource_id in sorted(linked_ids):
             for record in index.by_resource_id(resource_id):
-                if self._usable(record, audit_at) and not self._foreign(record, identity):
+                if self._usable(record, audit_at) and not self._foreign(
+                    record, identity
+                ):
                     self._add_record(candidates, record, audit_at)
 
         for record in self._link_unattributed_analytics(
@@ -521,7 +575,9 @@ class Investigator:
         ):
             self._add_record(candidates, record, audit_at)
 
-        self._link_account_by_report_time(candidates, index, activities, audit_at, reported_at)
+        self._link_account_by_report_time(
+            candidates, index, activities, audit_at, reported_at
+        )
         self._apply_activities(candidates, activities, index, audit_at)
         self._observe_account_absence(candidates, index, audit_at)
         return self._finalize(candidates)
@@ -537,7 +593,9 @@ class Investigator:
             and _observed_at(record) <= audit_at
         )
 
-    def _visible_records(self, index: EvidenceIndex, audit_at: datetime) -> list[EvidenceRecord]:
+    def _visible_records(
+        self, index: EvidenceIndex, audit_at: datetime
+    ) -> list[EvidenceRecord]:
         return [r for r in index.records if self._usable(r, audit_at)]
 
     @staticmethod
@@ -572,7 +630,9 @@ class Investigator:
             items = raw
         else:
             items = ()
-        return {str(i) for i in items if isinstance(i, str) and _RESOURCE_ID_RE.fullmatch(i)}
+        return {
+            str(i) for i in items if isinstance(i, str) and _RESOURCE_ID_RE.fullmatch(i)
+        }
 
     # -- candidate construction ------------------------------------------------
 
@@ -586,14 +646,18 @@ class Investigator:
         if not system_id:
             return
         key = (system_id, record.resource_id)
-        candidate = candidates.setdefault(key, _Candidate(system_id, record.resource_id))
+        candidate = candidates.setdefault(
+            key, _Candidate(system_id, record.resource_id)
+        )
         cited = record.evidence_id if record.captured_at <= audit_at else ""
         if cited:
             candidate.support_ids.add(cited)
         state = _record_state(system_id, record.fields)
         if state is None:
             return
-        replica_only = str(record.fields.get("replication_drift", "")).upper() == "REPLICA_ONLY"
+        replica_only = (
+            str(record.fields.get("replication_drift", "")).upper() == "REPLICA_ONLY"
+        )
         if replica_only:
             candidate.notes.add("replica_only")
         candidate.observations.append(
@@ -608,7 +672,9 @@ class Investigator:
             )
         )
 
-    def _catalog_links(self, identity: Identity, activities: Sequence[Activity]) -> set[str]:
+    def _catalog_links(
+        self, identity: Identity, activities: Sequence[Activity]
+    ) -> set[str]:
         """Resource ids explicitly attached to the subject by the data catalog."""
         emails = {normalize_email(e) for e in identity.emails}
         linked: set[str] = set()
@@ -616,7 +682,8 @@ class Investigator:
             if activity.event_type != "LINK_RESOURCE_IDENTITY":
                 continue
             found_emails = {
-                normalize_email(m) for m in collect_identifiers({"d": activity.details})["emails"]
+                normalize_email(m)
+                for m in collect_identifiers({"d": activity.details})["emails"]
             }
             found_users = set(_USER_ID_RE.findall(activity.details))
             if found_emails & emails or identity.user_id in found_users:
@@ -631,7 +698,10 @@ class Investigator:
             if not record.resource_id.startswith("analytics_"):
                 continue
             fields = record.fields
-            if any(fields.get(k) for k in ("emails", "phones", "email_hashes", "user_ids", "names")):
+            if any(
+                fields.get(k)
+                for k in ("emails", "phones", "email_hashes", "user_ids", "names")
+            ):
                 continue
             if _analytics_state(fields) is ObservedState.ANONYMIZED:
                 found.append(record)
@@ -689,7 +759,9 @@ class Investigator:
         records: list[EvidenceRecord] = []
         if selected:
             # keep the analytics profile closest to the deletion when several fit
-            _, record = min(selected.values(), key=lambda item: (item[0], item[1].resource_id))
+            _, record = min(
+                selected.values(), key=lambda item: (item[0], item[1].resource_id)
+            )
             same = [r for r in index.by_resource_id(record.resource_id)]
             records.extend(same)
         return records
@@ -720,7 +792,9 @@ class Investigator:
             for a in activities
             if a.event_type == "DELETE_RECORD"
             and a.target_system == ACCOUNT
-            and _REPORT_WINDOW_BEFORE <= a.event_time - reported_at <= _REPORT_WINDOW_AFTER
+            and _REPORT_WINDOW_BEFORE
+            <= a.event_time - reported_at
+            <= _REPORT_WINDOW_AFTER
         ]
         if len(window) != 1:
             return
@@ -800,9 +874,15 @@ class Investigator:
                 if activity.event_time > audit_at:
                     break
                 text = activity.details.lower()
-                if activity.event_type == "CHECK_DATA_FLOW" and "remains enabled" in text:
+                if (
+                    activity.event_type == "CHECK_DATA_FLOW"
+                    and "remains enabled" in text
+                ):
                     self._observe(candidate, ObservedState.ACTIVE, activity)
-                elif activity.event_type == "CHECK_RESTORE_ACCESS" and "can still be restored" in text:
+                elif (
+                    activity.event_type == "CHECK_RESTORE_ACCESS"
+                    and "can still be restored" in text
+                ):
                     self._observe(candidate, ObservedState.ACTIVE, activity)
 
         # recreation paths: active connectors and restores that repopulate copies
@@ -832,7 +912,9 @@ class Investigator:
                 target.support_ids.add(activity.activity_id)
                 latest = max((o.at for o in target.observations), default=None)
                 if latest is None or latest < activity.event_time:
-                    self._observe(target, ObservedState.PRESENT, activity, recreated=True)
+                    self._observe(
+                        target, ObservedState.PRESENT, activity, recreated=True
+                    )
 
         # replica recreation of the account record after its deletion
         for (system_id, resource_id), candidate in list(candidates.items()):
@@ -849,7 +931,8 @@ class Investigator:
             for activity in self._activities_by_resource.get(resource_id, ()):
                 if (
                     activity.event_type == "SYNC_RECORD"
-                    and activity.target_system in ("account_failover_replica", "account_replication_cluster")
+                    and activity.target_system
+                    in ("account_failover_replica", "account_replication_cluster")
                     and last_delete < activity.event_time <= audit_at
                 ):
                     candidate.support_ids.add(activity.activity_id)
@@ -879,7 +962,9 @@ class Investigator:
 
     # -- finalize ---------------------------------------------------------------
 
-    def _finalize(self, candidates: Mapping[tuple[str, str], _Candidate]) -> list[InvestigatedResource]:
+    def _finalize(
+        self, candidates: Mapping[tuple[str, str], _Candidate]
+    ) -> list[InvestigatedResource]:
         resources: list[InvestigatedResource] = []
         for (system_id, resource_id), candidate in candidates.items():
             chosen = self._choose(candidate)
@@ -905,14 +990,24 @@ class Investigator:
                     observed_state=state,
                     evidence_id=chosen.evidence_id,
                     depends_on=tuple(sorted(candidate.depends_on)),
-                    evidence_ids=tuple(sorted((candidate.support_ids | {chosen.evidence_id}) - {""})),
+                    evidence_ids=tuple(
+                        sorted((candidate.support_ids | {chosen.evidence_id}) - {""})
+                    ),
                     observed_at=chosen.at,
-                    recreated=any(n.startswith("recreated_by_") for n in candidate.notes),
+                    recreated=any(
+                        n.startswith("recreated_by_") for n in candidate.notes
+                    ),
                     notes=tuple(sorted(candidate.notes)),
                 )
             )
         order = {name: i for i, name in enumerate(SYSTEM_ORDER)}
-        resources.sort(key=lambda r: (order.get(r.system_id, len(order)), r.system_id, r.resource_id))
+        resources.sort(
+            key=lambda r: (
+                order.get(r.system_id, len(order)),
+                r.system_id,
+                r.resource_id,
+            )
+        )
         return resources
 
     @staticmethod
@@ -929,10 +1024,17 @@ class Investigator:
             ObservedState.DISABLED: 2,
             ObservedState.ABSENT: 1,
         }
+
         def best(observations: Iterable[_Observation]) -> _Observation:
             return max(
                 observations,
-                key=lambda o: (o.at, bool(o.evidence_id), rank.get(o.state, 0), o.order, o.evidence_id),
+                key=lambda o: (
+                    o.at,
+                    bool(o.evidence_id),
+                    rank.get(o.state, 0),
+                    o.order,
+                    o.evidence_id,
+                ),
             )
 
         if candidate.system_id == ACCOUNT:

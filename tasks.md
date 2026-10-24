@@ -70,27 +70,30 @@ Principles: only data from `dataset/`; nothing after `audit_at`; `reported_statu
 
 ### [X] TASK-07 — Investigation and state reconstruction
 - **Inputs:** `Identity`, evidence index, `system_activity.csv`, `audit_at`.
-- **Outputs:** `investigator.py::investigate() -> list[Resource]` with data category, true state at `audit_at` (present/absent/redacted/anonymized), proving evidence (`file_id`/`activity_id`/`audit_id`), active sync/import flows and restore paths.
+- **Outputs:** `investigator.py::investigate(identity, audit_at, *, reported_at=None, tables=None, index=None) -> list[Resource]` with data category, true state at `audit_at` (present/absent/redacted/anonymized), proving evidence (`file_id`/`activity_id`/`audit_id`), active sync/import flows and restore paths. Items are `InvestigatedResource` (a `Resource` subclass adding `evidence_ids`, `observed_at`, `recreated`, `notes`). Callers must pass `case.reported_at`: it anchors the account lookup (single account `DELETE_RECORD` within -90/+20 min of `reported_at`).
 - **Dependencies:** TASK-03, TASK-04, TASK-06.
 - **Acceptance criteria:** evidence after `audit_at` is ignored; a `SUCCESS` without state evidence is not accepted; recreation after deletion (sync/restore) is detected.
+- **Known limits (verified on samples):** accounts and anonymized analytics profiles carry no identifier and are linked only by activity-stream heuristics (`reported_at` window; second-of-minute offset 40-42 s after the account delete), so some are not found (e.g. case_04). Some golden ids (e.g. security audit records) appear in no visible source. A decoy log can add an extra resource (case_17, `account_6523`). The golden choice of cited evidence file is unknown; the latest valid observation at or before `audit_at` is used.
 
 ### [] TASK-08 — Policy application and status decision
 - **Inputs:** `list[Resource]`, `deletion_rules.csv`, TASK-05 result.
-- **Outputs:** `evaluator.py::assess() -> Assessment` (status + violations + compliant verifications); handling of `ACCOUNT_TOMBSTONE`, `RETAIN`, legal hold, backups.
+- **Outputs:** `evaluator.py::assess() -> Assessment` (status + violations + compliant verifications); handling of `ACCOUNT_TOMBSTONE`, `RETAIN`, legal hold, backups. Calls `investigate(..., reported_at=case.reported_at)`. Resources with a `risk_kind` are judged with `RISK_COMPLIANT_STATE` (flow must be `DISABLED`, restore `BLOCKED`); all others with `RULE_ACTION_COMPLIANT_STATE` for their `data_category`.
 - **Dependencies:** TASK-05, TASK-07.
-- **Acceptance criteria:** `COMPLETE` only if every resource complies, every retained record is still present, and no flows/restores are active.
+- **Acceptance criteria:** `COMPLETE` only if every resource complies, every retained record is still present, and no flows/restores are active. On the 32 samples, violation vs compliant status per shared resource and the case status agree with `sample_output.csv`.
 
 ### [] TASK-09 — Step planner and orchestration
 - **Inputs:** `Assessment`.
 - **Outputs:** `planner.py::build_steps()` (findings with evidence; remediation: disable flows and block restores first, downstream copies before the source; verification for every remediated resource with `evidence_id=""`); `main.py` writes `output.csv` (518 rows, sorted, deterministic JSON).
 - **Dependencies:** TASK-08.
 - **Acceptance criteria:** consecutive `step_no` starting at 1; order phase → operation → system_id → resource_id; schema validation before writing.
+- **Fallback for unlinked fixed steps:** the account (`VERIFY_RECORD_ABSENT`) and the subject's security audit record (`VERIFY_RECORD_PRESENT`) are expected in every deletion case. When the investigator cannot find them from visible data, the planner must still emit the steps from whatever ids were found, and skip them (never invent ids) when none exist. Cite only evidence captured at or before `audit_at`.
 
 ### [] TASK-10 — Evaluation, reports and documentation
 - **Inputs:** `sample_deletion_requests.csv`, `sample_output.csv`, `llm.py` metrics.
 - **Outputs:** `code/evaluation/main.py`; `code/evaluation/evaluation_report.md` (status, step, field and sequence accuracy; ≥3 custom cases; failures and improvements); `code/evaluation/usage_report.md` (provider/model, calls, input/output tokens, totals/average, cost); `README.md` with setup and run instructions.
 - **Dependencies:** TASK-09.
 - **Acceptance criteria:** a clean `python3 code/main.py` run produces 518 valid rows; reports complete and free of secrets.
+- **Failures to document in `evaluation_report.md`:** partial account coverage via the `reported_at` window; anonymized analytics linked by a second-of-minute heuristic; ids absent from any visible source; the case_17 decoy (`account_6523`); unknown golden choice of cited evidence file (latest valid observation used); intent classification of 31 texts relying on the rule fallback until the LLM quota resets.
 
 ## Execution Order
 
