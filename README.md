@@ -1,7 +1,6 @@
 # Hackathons
 
 [![Hackathons](https://img.shields.io/badge/Hackathons-1-informational?style=flat&logo=devpost&logoColor=white&color=00ADD8)](#-participations)
-![Latest](https://img.shields.io/badge/Latest-HackerRank%20Orchestrate-informational?style=flat&logo=hackerrank&logoColor=white&color=2EC866)
 
 A collection of every hackathon I take part in: the challenge, my solution, and how it went. Each project lives in its own folder with its full solution.
 
