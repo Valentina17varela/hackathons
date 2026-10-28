@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 330" width="720" height="330" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">
+  <title>Podium: 0 first, 0 second, 0 third, 1 participations</title>
+  <!-- 2nd -->
+  <rect x="150" y="206" width="150" height="90" fill="#7fb6dc"/>
+  <rect x="150" y="206" width="150" height="8" fill="#5f9cc6"/>
+  <text x="225.0" y="273.0" text-anchor="middle" font-size="64" font-weight="800" fill="#ffffff" fill-opacity=".9">2</text>
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <path d="M191.0 124.0 q-26.0 0 -24.0 22.0 q3.0 20.0 30.0 26.0" fill="none" stroke="#7c8591" stroke-width="7.0"/>
+    <path d="M259.0 124.0 q26.0 0 24.0 22.0 q-3.0 20.0 -30.0 26.0" fill="none" stroke="#7c8591" stroke-width="7.0"/>
+    <rect x="189.0" y="114.0" width="72.0" height="8.0" rx="2.0" fill="#7c8591"/>
+    <path d="M191.0 122.0 h68.0 q0 52.0 -26.0 58.0 h-16.0 q-26.0 -6.0 -26.0 -58.0z" fill="#aab2bd"/>
+    <path d="M191.0 122.0 h22.0 q-4.0 50.0 10.0 58.0 h-6.0 q-26.0 -6.0 -26.0 -58.0z" fill="#d8dde3" opacity=".55"/>
+    <rect x="220.0" y="178.0" width="10.0" height="14.0" fill="#aab2bd"/>
+    <rect x="205.0" y="192.0" width="40.0" height="8.0" rx="2.0" fill="#7c8591"/>
+    <rect x="201.0" y="200.0" width="48.0" height="6.0" rx="2.0" fill="#7a4a1d"/>
+  </g>
+  <text x="225" y="91" text-anchor="middle" font-size="26" font-weight="700" fill="#8b949e">0</text>
+  <text x="225" y="109" text-anchor="middle" font-size="13" fill="#8b949e" letter-spacing="1">2ND PLACE</text>
+  <!-- 1st -->
+  <rect x="300" y="166" width="150" height="130" fill="#7fb6dc"/>
+  <rect x="300" y="166" width="150" height="8" fill="#5f9cc6"/>
+  <text x="375.0" y="253.0" text-anchor="middle" font-size="64" font-weight="800" fill="#ffffff" fill-opacity=".9">1</text>
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <path d="M335.9 71.7 q-29.9 0 -27.599999999999998 25.299999999999997 q3.4499999999999997 23.0 34.5 29.9" fill="none" stroke="#f5a623" stroke-width="8.049999999999999"/>
+    <path d="M414.1 71.7 q29.9 0 27.599999999999998 25.299999999999997 q-3.4499999999999997 23.0 -34.5 29.9" fill="none" stroke="#f5a623" stroke-width="8.049999999999999"/>
+    <rect x="333.6" y="60.2" width="82.8" height="9.2" rx="2.3" fill="#f5a623"/>
+    <path d="M335.9 69.4 h78.19999999999999 q0 59.8 -29.9 66.69999999999999 h-18.4 q-29.9 -6.8999999999999995 -29.9 -66.69999999999999z" fill="#fcd34d"/>
+    <path d="M335.9 69.4 h25.299999999999997 q-4.6 57.49999999999999 11.5 66.69999999999999 h-6.8999999999999995 q-29.9 -6.8999999999999995 -29.9 -66.69999999999999z" fill="#fff0a8" opacity=".55"/>
+    <rect x="369.25" y="133.8" width="11.5" height="16.099999999999998" fill="#fcd34d"/>
+    <rect x="352.0" y="149.89999999999998" width="46.0" height="9.2" rx="2.3" fill="#f5a623"/>
+    <rect x="347.4" y="159.1" width="55.199999999999996" height="6.8999999999999995" rx="2.3" fill="#7a4a1d"/>
+  </g>
+  <text x="375" y="41" text-anchor="middle" font-size="26" font-weight="700" fill="#8b949e">0</text>
+  <text x="375" y="59" text-anchor="middle" font-size="13" fill="#8b949e" letter-spacing="1">1ST PLACE</text>
+  <!-- 3rd -->
+  <rect x="450" y="236" width="150" height="60" fill="#7fb6dc"/>
+  <rect x="450" y="236" width="150" height="8" fill="#5f9cc6"/>
+  <text x="525.0" y="288.0" text-anchor="middle" font-size="64" font-weight="800" fill="#ffffff" fill-opacity=".9">3</text>
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <path d="M491.0 154.0 q-26.0 0 -24.0 22.0 q3.0 20.0 30.0 26.0" fill="none" stroke="#b8431d" stroke-width="7.0"/>
+    <path d="M559.0 154.0 q26.0 0 24.0 22.0 q-3.0 20.0 -30.0 26.0" fill="none" stroke="#b8431d" stroke-width="7.0"/>
+    <rect x="489.0" y="144.0" width="72.0" height="8.0" rx="2.0" fill="#b8431d"/>
+    <path d="M491.0 152.0 h68.0 q0 52.0 -26.0 58.0 h-16.0 q-26.0 -6.0 -26.0 -58.0z" fill="#ee6a35"/>
+    <path d="M491.0 152.0 h22.0 q-4.0 50.0 10.0 58.0 h-6.0 q-26.0 -6.0 -26.0 -58.0z" fill="#f7a07c" opacity=".55"/>
+    <rect x="520.0" y="208.0" width="10.0" height="14.0" fill="#ee6a35"/>
+    <rect x="505.0" y="222.0" width="40.0" height="8.0" rx="2.0" fill="#b8431d"/>
+    <rect x="501.0" y="230.0" width="48.0" height="6.0" rx="2.0" fill="#7a4a1d"/>
+  </g>
+  <text x="525" y="121" text-anchor="middle" font-size="26" font-weight="700" fill="#8b949e">0</text>
+  <text x="525" y="139" text-anchor="middle" font-size="13" fill="#8b949e" letter-spacing="1">3RD PLACE</text>
+  <rect x="120" y="296" width="510" height="3" rx="1.5" fill="#8b949e" opacity=".35"/>
+  <text x="360.0" y="322" text-anchor="middle" font-size="15" fill="#8b949e" letter-spacing="2">1 PARTICIPATION</text>
+</svg>
