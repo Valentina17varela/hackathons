@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""Regenerates assets/podium.svg and assets/carousel.svg from hackathons.json.
+"""Regenerates assets/podium.svg and assets/carousel.svg from JSON data.
 
 Usage (from the repo root):  python3 scripts/build_assets.py
 Needs Pillow:                pip install pillow
 
-hackathons.json is a list; each item looks like:
-  {"name": "...", "image": "assets/xxx.jpg", "place": null}   # place: 1, 2, 3 or null
+hackathons.json is a list of participations; each item looks like:
+  {"name": "...", "place": null}   # place: 1, 2, 3 or null
+gallery.json is a list of carousel images; each item looks like:
+  {"name": "...", "image": "assets/xxx.jpg"}
 """
 import base64
 import io
@@ -16,6 +18,7 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = json.loads((ROOT / "hackathons.json").read_text())
+GALLERY = json.loads((ROOT / "gallery.json").read_text())
 
 # ---------------------------------------------------------------- podium
 wins = sum(1 for h in DATA if h.get("place") == 1)
@@ -71,14 +74,14 @@ podium = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width
 CW, CH = 420, 315          # slide box (the original images are 4:3)
 SHOW, FADE = 4.0, 0.8      # seconds each slide is shown / cross-fade
 imgs = []
-for h in DATA:
-    if not h.get("image"):
-        continue
-    im = Image.open(ROOT / h["image"]).convert("RGB")
-    im.thumbnail((CW * 2, CH * 2))
-    buf = io.BytesIO()
-    im.save(buf, "JPEG", quality=80, optimize=True)
-    imgs.append((h["name"], base64.b64encode(buf.getvalue()).decode()))
+for item in GALLERY:
+    image_path = ROOT / item["image"]
+    with Image.open(image_path) as im:
+        im = im.convert("RGB")
+        im.thumbnail((CW * 2, CH * 2))
+        buf = io.BytesIO()
+        im.save(buf, "JPEG", quality=80, optimize=True)
+    imgs.append((item["name"], base64.b64encode(buf.getvalue()).decode()))
 
 n = len(imgs)
 cycle = n * SHOW

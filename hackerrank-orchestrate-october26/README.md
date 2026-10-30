@@ -9,6 +9,10 @@
 
 > Northstar Shop lost **$2.4 million** because one "deleted" customer came back as a ghost: every dashboard said **Complete**, yet the email was still registered. This project audits deletion requests the way a regulator would — from evidence, not from workflow claims.
 
+<p align="center">
+  <img src="../assets/results-orchestrate-oct2026.png" alt="Results" width="700">
+</p>
+
 For every request in `dataset/deletion_requests.csv`, the agent:
 
 1. decides whether the request text actually **authorizes deletion** (any language);

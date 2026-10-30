@@ -17,6 +17,6 @@ A collection of every hackathon I take part in: the challenge, my solution, and 
 
 ## 🎟️ Participations
 
-| Date | Hackathon | Project | Stack | Result |
-| --- | --- | --- | --- | --- |
-| Oct 2026 | [HackerRank Orchestrate, October Edition](#hackerrank-orchestrate--october-2026) | [Ghost Data Still Exists, deletion-audit agent](hackerrank-orchestrate-october26) | ![Python](https://img.shields.io/badge/-Python-3776AB?style=flat&logo=python&logoColor=white) ![LLM](https://img.shields.io/badge/-LLM-8333D4?style=flat) ![SDD](https://img.shields.io/badge/-SDD-informational?style=flat) | ![Submitted](https://img.shields.io/badge/Submitted-success?style=flat) Results pending |
+| Date | Hackathon | Project | Stack | Result | Percentil |
+| --- | --- | --- | --- | --- | --- |
+| Oct 2026 | [HackerRank Orchestrate, October Edition](#hackerrank-orchestrate--october-2026) | [Ghost Data Still Exists, deletion-audit agent](hackerrank-orchestrate-october26) | ![Python](https://img.shields.io/badge/-Python-3776AB?style=flat&logo=python&logoColor=white) ![LLM](https://img.shields.io/badge/-LLM-8333D4?style=flat) ![SDD](https://img.shields.io/badge/-SDD-informational?style=flat) | 465/4094 | Top 12% |
