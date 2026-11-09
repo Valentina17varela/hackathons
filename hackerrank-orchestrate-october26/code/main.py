@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Sequence
 
-from evaluator import IntentClassifier, assess
+from evaluator import IntentClassifier, assess, rules_by_category
 from evidence_extractors import EvidenceIndex
 from identity_resolver import AmbiguousIdentityError, IdentityResolver
 from investigator import Investigator
@@ -95,6 +95,7 @@ class AuditPipeline:
         self._classifier = classifier
         self._resolver = IdentityResolver(tables)
         self._investigator = Investigator(tables, index)
+        self._rules = rules_by_category(tables.rules)
 
     def run_case(self, case: Case) -> CaseResult:
         if not self._classifier.classify(case.request_text).authorizes_deletion:
@@ -115,6 +116,7 @@ class AuditPipeline:
             assessment,
             resources=resources,
             citations=visible_citations(self._tables, case.audit_at),
+            rules=self._rules,
         )
         status = assessment.status
         if status is DeletionStatus.COMPLETE and not steps:

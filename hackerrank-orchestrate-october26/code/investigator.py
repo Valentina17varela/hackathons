@@ -6,9 +6,12 @@ subject and reconstructs the state each one had at ``audit_at``.
 
 Principles
 ----------
-* Only information available at or before ``audit_at`` is used: evidence files
-  captured later, observations timestamped later and activities later are all
-  ignored.
+* Audit cutoff, enforced as one two-level policy: a row's *state* is read only
+  when the row is stamped (``observed_at``) at or before ``audit_at``, and an
+  evidence file is *cited* only when it was captured at or before ``audit_at``
+  (``citable``). Activities later than ``audit_at`` are ignored entirely. A
+  snapshot captured after the cutoff can therefore carry readable rows that
+  were stamped earlier, but it can never be cited.
 * Workflow results are claims. A ``SUCCESS`` deletion/redaction/anonymization
   activity never sets a state on its own; a resource state is accepted only
   from evidence (the latest observation per resource wins). The only
@@ -151,10 +154,14 @@ class InvestigatedResource(Resource):
 
     ``evidence_id`` is the deterministic primary proof (the latest observation
     that establishes ``observed_state``); ``evidence_ids`` lists every
-    participant-visible id that supports the linking or the state.
+    participant-visible id that supports the linking or the state;
+    ``state_evidence_ids`` lists only the ids of observations that establish
+    the final state itself (a citation that must prove the state may only come
+    from this set, never from an id that only proves the linking).
     """
 
     evidence_ids: tuple[str, ...] = ()
+    state_evidence_ids: tuple[str, ...] = ()
     observed_at: datetime | None = None
     recreated: bool = False
     notes: tuple[str, ...] = ()
@@ -249,6 +256,19 @@ def _observed_at(record: EvidenceRecord) -> datetime:
         except ValueError:
             pass
     return record.captured_at
+
+
+def citable(record: EvidenceRecord, audit_at: datetime) -> bool:
+    """Whether ``record``'s source file may be *cited* for a case at ``audit_at``.
+
+    This is the strict half of the audit-cutoff policy: a citation claims
+    "this evidence was available and proves the state", so the file itself
+    must have been captured at or before ``audit_at``. ``_usable`` (the other
+    half) decides which rows may be *read* and uses the per-row observation
+    time instead; a later-captured bundle can legitimately carry rows stamped
+    earlier, but it can never be cited.
+    """
+    return record.captured_at <= audit_at
 
 
 # ---------------------------------------------------------------------------
@@ -635,12 +655,15 @@ class Investigator:
     # -- evidence filtering ---------------------------------------------------
 
     def _usable(self, record: EvidenceRecord, audit_at: datetime) -> bool:
-        # The state is read at the observation time. A snapshot file captured
-        # after ``audit_at`` can still carry rows stamped at or before it (the
-        # public samples expect those rows, e.g. audit-log retention records
-        # that appear only in a bundle exported two days later), so the capture
-        # time is not a filter here; later files are never *cited* (see
-        # ``_add_record`` and ``planner.visible_citations``).
+        # Audit-cutoff policy (applied uniformly; see the module docstring):
+        # a record's *state* is decided at its observation time, so only rows
+        # stamped at or before ``audit_at`` are read. A snapshot file captured
+        # after ``audit_at`` can still carry such rows (the public samples
+        # expect them, e.g. audit-log retention records that appear only in a
+        # bundle exported two days later). Whether a file may be *cited* is a
+        # separate, stricter question answered by ``citable`` below and by
+        # ``planner.visible_citations``: only files captured at or before
+        # ``audit_at`` are ever cited.
         return (
             bool(record.resource_id)
             and bool(system_for_resource(record.resource_id))
@@ -703,7 +726,7 @@ class Investigator:
         candidate = candidates.setdefault(
             key, _Candidate(system_id, record.resource_id)
         )
-        cited = record.evidence_id if record.captured_at <= audit_at else ""
+        cited = record.evidence_id if citable(record, audit_at) else ""
         if cited:
             candidate.support_ids.add(cited)
         state = _record_state(system_id, record.fields)
@@ -856,7 +879,9 @@ class Investigator:
         if len(window) != 1:
             return
         resource_id = window[0].resource_id
-        candidates[(ACCOUNT, resource_id)] = _Candidate(ACCOUNT, resource_id)
+        account = _Candidate(ACCOUNT, resource_id)
+        account.support_ids.add(window[0].activity_id)
+        candidates[(ACCOUNT, resource_id)] = account
         for record in index.by_resource_id(resource_id):
             if self._usable(record, audit_at):
                 self._add_record(candidates, record, audit_at)
@@ -915,7 +940,7 @@ class Investigator:
             return
         coverage: dict[str, datetime] = {}
         for record in index.by_system(ACCOUNT):
-            if record.captured_at <= audit_at:
+            if citable(record, audit_at):
                 coverage[record.evidence_id] = record.captured_at
         for (_, resource_id), candidate in accounts:
             deleted_at = max(
@@ -999,6 +1024,10 @@ class Investigator:
                 target = candidates.setdefault(
                     (down_system, downstream), _Candidate(down_system, downstream)
                 )
+                # The downstream copy is fed by this flow/backup: record the
+                # upstream source so the planner can order remediation
+                # (close the flow, then change the records it feeds).
+                target.depends_on.add(resource_id)
                 for record in index.by_resource_id(downstream):
                     if self._usable(record, audit_at):
                         self._add_record(candidates, record, audit_at)
@@ -1062,6 +1091,28 @@ class Investigator:
         for (system_id, resource_id), candidate in candidates.items():
             chosen = self._choose(candidate)
             if chosen is None:
+                # Linked (by the catalog, a screen, a recreation activity or the
+                # report-time window) but never observed: the state at
+                # ``audit_at`` could not be reconstructed. The resource stays
+                # visible as unresolved instead of silently disappearing, so
+                # the policy stage blocks ``COMPLETE`` for it.
+                if candidate.support_ids or candidate.depends_on:
+                    resources.append(
+                        InvestigatedResource(
+                            system_id=system_id,
+                            resource_id=resource_id,
+                            data_category=SYSTEM_CATEGORY.get(system_id),
+                            observed_state=ObservedState.UNKNOWN,
+                            depends_on=tuple(sorted(candidate.depends_on)),
+                            evidence_ids=tuple(sorted(candidate.support_ids)),
+                            notes=("state_not_observable",),
+                        )
+                    )
+                    logger.info(
+                        "%s/%s linked but never observed; kept as unresolved",
+                        system_id,
+                        resource_id,
+                    )
                 continue
             category = chosen.category or next(
                 (o.category for o in reversed(candidate.observations) if o.category),
@@ -1074,6 +1125,15 @@ class Investigator:
                 if risk is not None and chosen.state is ObservedState.PRESENT
                 else chosen.state
             )
+            # Ids of the observations that establish the final state itself:
+            # the only ids a state-proving citation may use.
+            state_ids = {
+                o.evidence_id
+                for o in candidate.observations
+                if o.evidence_id and o.state is state
+            }
+            state_ids.add(chosen.evidence_id)
+            state_ids.discard("")
             resources.append(
                 InvestigatedResource(
                     system_id=system_id,
@@ -1086,6 +1146,7 @@ class Investigator:
                     evidence_ids=tuple(
                         sorted((candidate.support_ids | {chosen.evidence_id}) - {""})
                     ),
+                    state_evidence_ids=tuple(sorted(state_ids)),
                     observed_at=chosen.at,
                     recreated=any(
                         n.startswith("recreated_by_") for n in candidate.notes

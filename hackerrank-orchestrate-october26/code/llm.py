@@ -120,7 +120,11 @@ def load_dotenv(path: Path | None = None) -> None:
             continue
         key, _, value = line.partition("=")
         key = key.strip().removeprefix("export ").strip()
-        value = value.strip().strip("'\"")
+        value = value.strip()
+        if value[:1] in ("'", '"'):
+            value = value[1:].split(value[0], 1)[0]
+        else:
+            value = value.split(" #", 1)[0].strip()
         if key and key not in os.environ:
             os.environ[key] = value
 

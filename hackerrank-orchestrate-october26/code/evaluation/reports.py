@@ -91,6 +91,23 @@ FAILURES: tuple[tuple[str, str], ...] = (
         "those answers (for example case_04).",
     ),
     (
+        "Account ids no participant-visible data links to the subject "
+        "(measured)",
+        "12 of the 18 missing reference steps are account verifications. The "
+        "measurement-driven investigation of that gap: the expected account ids "
+        "appear only in the global `DELETE_RECORD` activity stream (which never "
+        "names the subject) or in no visible source at all (for example "
+        "`account_004`), and three candidate recovery rules were tested and "
+        "rejected — a second-of-minute fingerprint of the subject's other "
+        "activities (the expected deletes do not share one), request queue "
+        "order (two cases with identical `reported_at` windows expect two "
+        "different accounts from the same batch), and a `user_NNN` to "
+        "`account_NNN` naming convention (broken by `user_03` -> "
+        "`account_7566`). No evidence-handling change closes this gap without "
+        "inventing links, so the planner keeps omitting those steps rather "
+        "than guessing.",
+    ),
+    (
         "Anonymized analytics linked by a second-of-minute heuristic",
         "Anonymized analytics profiles contain no identifier either. They are "
         "linked through the activity stream: the profile deletion appears "
@@ -171,6 +188,38 @@ IMPROVEMENTS: tuple[str, ...] = (
     "**Prompt-injection hardening.** Request text is sent only inside "
     "`<request>` tags with an instruction to treat it as data, and nothing else "
     "from the case is sent to the model (see custom case 4).",
+    "**Policy conditions applied explicitly (post-feedback).** Rules are no "
+    "longer picked as a category's first row: every rule's `condition` is "
+    "evaluated through a documented registry (`evaluator.condition_applies`), "
+    "conditions whose facts are not evaluable from participant data are "
+    "conservatively presumed applicable and logged, and a resource whose "
+    "category has no applicable rule is left unjudged and blocks `COMPLETE` "
+    "instead of being silently skipped.",
+    "**Citations must prove the state they support (post-feedback).** A "
+    "verification on a `COMPLETE` case may only cite an id from the "
+    "observations that establish the final state (`state_evidence_ids`); an id "
+    "that only proves the *linking* of a resource never passes as proof of "
+    "deletion completeness.",
+    "**Unresolved resources stay visible (post-feedback).** A resource that is "
+    "linked but never observed is kept with `UNKNOWN` state instead of being "
+    "dropped silently, so it blocks `COMPLETE` and receives its policy check "
+    "from the checklist below.",
+    "**Policy-driven verification checklist (post-feedback).** Every deletion "
+    "plan ends with the checks policy requires wherever they are relevant — "
+    "account absence, analytics anonymization, retained-record presence "
+    "(security audit, legal holds), flow and restore closure — including for "
+    "unjudged resources, not only for violations. An audit-record presence "
+    "check is never treated as proof of deletion completeness on its own.",
+    "**Dependency rules enforced, not assumed (post-feedback).** The finished "
+    "plan is checked (`planner.enforce_dependencies`): every data flow or "
+    "backup that can copy or restore a record must be disabled or blocked "
+    "before the records it feeds are remediated (a violation aborts the case), "
+    "and downstream copies are reported when the canonical order puts a source "
+    "record before the copy that depends on it.",
+    "**One audit-cutoff policy (post-feedback).** The cutoff is enforced as a "
+    "single documented two-level rule used uniformly: a row's state is read "
+    "only when the row is stamped at or before `audit_at`, and a file is cited "
+    "only when it was captured at or before `audit_at` (`investigator.citable`).",
 )
 
 

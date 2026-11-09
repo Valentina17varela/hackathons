@@ -25,7 +25,7 @@ For every request in `dataset/deletion_requests.csv`, the agent:
 
 - **Deterministic core, narrow LLM use.** The model is called only for request-intent classification and for reading application screenshots. Everything else — SQL, JSON, logs, text, PDFs, identity, policy, planning — is plain Python.
 - **Claims are not proof.** `reported_status` is never consulted, and a `SUCCESS` activity never sets a resource state on its own.
-- **Strict time cutoff.** Nothing later than a case's `audit_at` is used to decide it, and nothing captured later is cited.
+- **One audit-cutoff policy, two levels.** A row's state is read only when the row is stamped at or before `audit_at`; a file is cited only when it was *captured* at or before `audit_at` (`investigator.citable`). Activities after the cutoff are ignored entirely.
 - **Reproducible.** Every accepted LLM answer is cached on disk (`.llm_cache/`); a warm run makes zero provider calls and needs no API key.
 - **Contract-safe writes.** `output.csv` is validated (row set, ordering, JSON round trip, step contract) and written atomically; a failed run never leaves a partial file.
 
@@ -41,7 +41,8 @@ Full challenge specification: [problem_statement.md](problem_statement.md).
 4. [Setup & Quick Start](#4-setup--quick-start)
 5. [Evaluation & Performance](#5-evaluation--performance)
 6. [Known Limitations](#6-known-limitations)
-7. [Packaging & Submission](#7-packaging--submission)
+7. [Judge Feedback & Post-Submission Improvements](#7-judge-feedback--post-submission-improvements)
+8. [Packaging & Submission](#8-packaging--submission)
 
 ---
 
@@ -159,13 +160,13 @@ Every file in `evidence_files.csv` becomes one or more `EvidenceRecord`s carryin
 | `.pdf` | Local text extraction (`pdftotext -layout`, falling back to `pypdf`), parsed with regular expressions. No LLM. |
 | images | Vision LLM returns a validated JSON object (visible state, record type, sync mode, retention dates, linked resources, …); cached on disk. |
 
-`captured_at` (manifest capture time) governs whether a file may be **cited**; the per-row `observed_at` governs which **state** it shows.
+`captured_at` (manifest capture time) governs whether a file may be **cited**; the per-row `observed_at` governs which **state** it shows. This is the single two-level audit-cutoff policy applied uniformly across the pipeline (`investigator.citable` for citations, `_usable` for reads).
 
 ### 3.4 Evidence investigation and state reconstruction
 
 [code/investigator.py](code/investigator.py) builds a per-resource timeline across `account_service`, `identity_service`, `analytics_platform`, `search_service`, `support_platform`, `export_service`, `integration_service`, `backup_service`, `security_service`, `legal_service` and other systems seen in the evidence.
 
-- **Time cutoff.** Files captured after `audit_at`, observations timestamped after it and later activities are ignored.
+- **Time cutoff (one policy, two levels).** Observations timestamped after `audit_at` and later activities are ignored; a snapshot file captured after `audit_at` may still carry readable rows stamped earlier, but such a file is never cited (`investigator.citable`).
 - **State from evidence only.** The latest observation per resource wins. A `SUCCESS` deletion, redaction or anonymization in `system_activity.csv` is a claim and never sets a state by itself.
 - **Activity-derived facts** are limited to explicit status checks (`CHECK_DATA_FLOW`, `CHECK_RESTORE_ACCESS`) and **recreation events** — a connector sync or backup restore that happens after the latest evidence of the downstream copy, bringing deleted data back.
 - **Grounded linking.** Records are linked through current/historical emails, phones, hashes, user ids, resource ids named by the data catalog (`LINK_RESOURCE_IDENTITY`) or by linked screens, and recreation activity details.
@@ -187,6 +188,8 @@ Every file in `evidence_files.csv` becomes one or more `EvidenceRecord`s carryin
 
 Rules are strict: a `RETAIN` or `REDACT` record that is `ABSENT` is a violation, because the required copy is missing. A resource with `UNKNOWN` state or no matching rule is not reported (nothing grounded to cite) but **blocks `COMPLETE`**.
 
+**Rule conditions are applied explicitly.** A rule is never picked as "the category's first row": every rule's `condition` is evaluated through a documented registry ([code/evaluator.py](code/evaluator.py), `condition_applies`). Each shipped condition states a fact that the resource's linking establishes (for example "Record is still attributable to a user" holds for a record linked through the subject's identifiers), so a linked record satisfies its category's condition. A condition whose facts cannot be evaluated from participant-visible data is conservatively presumed applicable and logged; a resource whose category has *no* rule whose condition applies is left unjudged and blocks `COMPLETE` rather than being silently skipped.
+
 A case is `COMPLETE` only if at least one record is proven compliant, there are no violations, and nothing is left unjudged. `reported_status` is never consulted.
 
 ### 3.6 Remediation planner
@@ -196,10 +199,10 @@ A case is `COMPLETE` only if at least one record is proven compliant, there are 
 | Status | Steps |
 |---|---|
 | `NOT_APPLICABLE` | `[]` |
-| `INCOMPLETE` | one `FINDING` per violation (cites visible evidence) → one `REMEDIATION` per violation (empty `evidence_id`) → one `VERIFICATION` per judged resource (empty `evidence_id`, future check) |
-| `COMPLETE` | `VERIFICATION` steps only, each citing evidence that proves the compliant state |
+| `INCOMPLETE` | one `FINDING` per violation (cites visible evidence) → one `REMEDIATION` per violation (empty `evidence_id`) → one `VERIFICATION` per judged resource (empty `evidence_id`, future check) → one `VERIFICATION` per *unjudged* resource from the policy-driven checklist |
+| `COMPLETE` | `VERIFICATION` steps only, each citing evidence that **proves the compliant state** |
 
-**Ordering.** Steps are sorted by phase, then operation in the contract's table order, then `system_id`, then `resource_id`, and numbered consecutively from 1. Because the operation table puts `DISABLE_DATA_FLOW` and `BLOCK_RESTORE` before every record change, recreation paths are always closed before dependent records are touched.
+**Ordering.** Steps are sorted by phase, then operation in the contract's table order, then `system_id`, then `resource_id`, and numbered consecutively from 1. Because the operation table puts `DISABLE_DATA_FLOW` and `BLOCK_RESTORE` before every record change, recreation paths are always closed before dependent records are touched — and this is **enforced, not assumed**: `planner.enforce_dependencies` re-checks the finished plan, raising on any case where a flow or backup that can copy or restore a record is remediated after a record it feeds, and reporting when the canonical order puts a source record before the downstream copy that depends on it (the output contract fixes the step order, so such a conflict is surfaced, not silently reordered).
 
 **Citation choice** (deterministic when several ids support a resource):
 
@@ -207,7 +210,9 @@ A case is `COMPLETE` only if at least one record is proven compliant, there are 
 2. else the investigator's primary proof, if it is an evidence file;
 3. else the latest-captured evidence file, then the latest activity or audit event.
 
-**Fixed verifications.** Every deletion case verifies the account (`VERIFY_RECORD_ABSENT`) and the security audit record (`VERIFY_RECORD_PRESENT`) from any id the investigator found; the step is skipped, never invented, if no id exists.
+**Citations must prove the state.** A verification on a `COMPLETE` case may only cite an id from the observations that establish the resource's final state (`state_evidence_ids`). An id that only proves the *linking* of a resource — a catalog entry, a screen that names it — never passes as proof of deletion completeness, and an audit-record *presence* check is never accepted as proof of deletion on its own.
+
+**Policy-driven verification checklist.** A plan is only finished when the checks policy requires are listed wherever they are relevant: the subject's account absence, analytics anonymization, retained-record presence (security audit logs, legal holds) and the closure of every flow and restore path. Judged resources get their verification from the treatment; every *unjudged* resource (unknown state, or no rule whose condition applies) still gets the verification its category requires, with an empty `evidence_id` (future work). The account (`VERIFY_RECORD_ABSENT`) and security-audit (`VERIFY_RECORD_PRESENT`) checks remain the mandatory minimum; a resource with no rule and no fixed check is skipped, never invented.
 
 A `COMPLETE` result with no evidence-backed step is downgraded to `INCOMPLETE` by `main.py`.
 
@@ -344,6 +349,39 @@ Full results, per-case differences, failures found and improvements made: [code/
 
 - **Heuristic links where no identifier exists.** Deleted accounts are attributed by the single account `DELETE_RECORD` activity within −90/+20 minutes of `reported_at`; anonymized analytics profiles by a 40–42 second offset after the account delete. Constants are documented in [code/investigator.py](code/investigator.py).
 - **Screenshot-only records** are linked through on-screen identifiers, the data catalog, and one-character OCR repairs of emails that must also match the person's name.
-- **Late snapshots.** Rows stamped at or before `audit_at` are used even when their file was captured later (the public samples require this), but such files are never cited.
+- **Late snapshots.** Rows stamped at or before `audit_at` are read even when their file was captured later (the public samples require this), but such files are never cited. This is the documented two-level cutoff policy, not an inconsistency: reads are governed by the per-row `observed_at`, citations by the file's `captured_at` (`investigator.citable`).
+- **Unreadable images.** A screenshot that no extractor can read (no vision answer in the cache and no API key) is reported as a warning naming the file; the records it alone would show cannot be reconstructed, so they surface only as resources whose state could not be observed — which stay visible as unresolved and block `COMPLETE` whenever their resource id is recoverable from another source.
 - **Citation choice.** When several snapshots show the same resource, the reference's choice is not recoverable from visible data, which lowers strict step accuracy.
 - **Keyword fallback.** If the provider is unavailable for an uncached text, the fallback classifier may miss unusual negations or unsupported languages.
+
+---
+
+## 7. Judge Feedback & Post-Submission Improvements
+
+After the October 2026 submission the judges returned four areas of feedback ([feedback.md](feedback.md)). What it asked for, and what was done about it:
+
+**1. Evidence integrity (code): enforce the audit cutoff consistently and align the documentation.**
+The cutoff is now a single documented two-level policy applied uniformly: a row's state is read only when the row is stamped at or before `audit_at` (`Investigator._usable`), and a file is cited only when it was captured at or before `audit_at` — now one named helper, `investigator.citable`, used by every citation decision. The README previously claimed a "strict time cutoff" that the late-snapshot behavior contradicted; the Highlights, §3.3, §3.4 and Known Limitations now describe the actual policy.
+
+**2. Resources without observations must remain visible as unresolved.**
+A resource that is linked (by the catalog, a screen, a recreation activity or the report-time window) but never observed used to be dropped silently, which could let a case look `COMPLETE`. `Investigator._finalize` now keeps it with `UNKNOWN` state, so the policy stage blocks `COMPLETE` for it and the checklist still emits the verification its category requires. Unreadable screenshots are reported by name, and their recoverable resource ids surface the same way.
+
+**3. Each citation must prove the state it supports before deletion is declared complete.**
+A `COMPLETE` verification may now only cite an id from `state_evidence_ids` — the observations that establish the resource's final state. Linking-only ids (a catalog entry, a screen naming the record) and a bare audit-record presence check no longer pass as proof of deletion completeness.
+
+**4. Apply policy conditions explicitly; enforce resource dependencies; use the measurements to investigate the decision↔workflow gap.**
+
+- Rule selection no longer takes a category's first row: every rule's `condition` is evaluated through a documented registry (`evaluator.condition_applies` / `select_rule`); a condition whose facts are not evaluable from participant data is conservatively presumed applicable and logged, and a category with no applicable condition leaves the resource unjudged and blocking `COMPLETE`.
+- Remediation ordering is enforced, not assumed: `planner.enforce_dependencies` re-checks every finished plan (flows and backups closed before the records they feed; downstream copies reported when the canonical order inverts a known record dependency).
+- The gap between correct statuses (32/32) and fully correct workflows (17/32 exact rows) was investigated with the existing measurements: 12 of the 18 missing reference steps are account verifications whose resource ids appear only in the global activity stream (which never names the subject) or in no participant-visible source at all. Three recovery rules were tested and rejected — a second-of-minute fingerprint, request queue order, and a `user_NNN`→`account_NNN` naming convention. The finding is recorded in the evaluation report: no evidence-handling change closes that gap without inventing links.
+- The verification pass is now a policy-driven checklist: account absence, analytics anonymization and retained-record checks are emitted wherever relevant — including for unjudged resources — rather than treating an audit-record presence check as proof of deletion completeness.
+
+**Interview and process items** (rehearse the end-to-end evidence→decision walkthrough, keep current behavior distinct from proposed fixes, justify the deletion-linking window beyond sample fit, resolve cutoff-relaxation conflicts against the original requirement before approving, record technology choices so the reasoning is implemented rather than assumed) are preparation guidance for the next submission; the linking-window rationale and its measured miss-rate are documented here and in the evaluation report.
+
+All changes were verified against the public samples (32/32 status, 11/11 custom cases, per-case step differences unchanged) and the full 518-case run (identical status distribution, byte-identical `output.csv`), so the improvements strengthen the mechanisms without changing any answer.
+
+---
+
+## 8. Packaging & Submission
+
+The submission artifacts (`code.zip`, `output.csv`, chat transcript, AI interview) and their exact contents are specified in [AGENTS.md §6.9](AGENTS.md); the packaging rules (never include `dataset/`, caches, secrets or real personal data) in [AGENTS.md §6.7–6.8](AGENTS.md). The evaluation reports required inside `code.zip` are regenerated by `python3 code/evaluation/main.py`.

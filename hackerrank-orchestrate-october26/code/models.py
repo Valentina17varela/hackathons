@@ -460,7 +460,10 @@ class Resource:
     risk_kind: RiskKind | None = None
     observed_state: ObservedState = ObservedState.UNKNOWN
     evidence_id: str = ""
-    depends_on: tuple[str, ...] = ()  # resource_ids of upstream sources
+    # For a record: resource_ids of the upstream sources that feed it (a data
+    # flow, a backup, a source record it was synced from). For a data flow or
+    # backup: the downstream resource ids it can copy or restore into.
+    depends_on: tuple[str, ...] = ()
 
     @property
     def key(self) -> tuple[str, str]:

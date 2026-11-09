@@ -415,3 +415,44 @@ branch=main
 repo_root=/Users/valentinavarela/Desktop/Coding/hackerrank-orchestrate-october26
 worktree=main
 parent_agent=none
+
+## [2026-11-09T12:00:00-05:00] SESSION START
+
+tool=Claude Code
+model=claude-tally-glm-5.3-priority[1m]
+Repo Root: /Users/valenrina17varela/Desktop/Personal/Coding/hackathons/hackerrank-orchestrate-october26
+Branch: main
+Worktree: main
+Parent Agent: none
+Language: py
+Time Remaining: not configured
+
+## [2026-11-09T21:20:00Z] Judge feedback review, README feedback section, code improvements
+
+User Prompt (verbatim, secrets redacted):
+quiero que revises el feedback que nos dieron, añade eso en el readme en alguna seccion, y quiero que revises el codigo y la solucion general y mires de acuerdo a ese feedback donde estan las oportunidades de mejora y aplicalas
+
+User Prompt (English translation):
+I want you to review the feedback we received, add it to the README in some section, and I want you to review the code and the overall solution and, according to that feedback, find the improvement opportunities and apply them.
+
+Agent Response Summary:
+Reviewed judge feedback (feedback.md) and mapped each item to code changes. Investigated the status-vs-workflow gap with the existing measurements: 12 of 18 missing reference steps are account verifications whose ids are not recoverable from participant data (second-of-minute fingerprint, queue order and user_NNN->account_NNN naming all tested and rejected). Applied: unified two-level audit-cutoff policy with a named citable() helper; linked-but-unobserved resources kept as UNKNOWN so they block COMPLETE; COMPLETE citations restricted to state-proving ids (state_evidence_ids); explicit rule-condition registry replacing first-rule-of-category selection; generalized policy-driven verification checklist for unjudged resources; dependency enforcement on finished plans (planner.enforce_dependencies). Added README section 7 (Judge Feedback & Post-Submission Improvements), fixed cutoff documentation in Highlights/3.3/3.4/Known Limitations, added section 8 (Packaging). Updated evaluation report FAILURES/IMPROVEMENTS via reports.py. Verified: samples 32/32 status, 17/32 exact rows, 11/11 custom cases (unchanged), full 518-case run passes with identical status distribution and byte-identical output.csv.
+
+Actions:
+* Edited code/investigator.py (citable helper, unresolved UNKNOWN resources, state_evidence_ids, downstream depends_on, support id for report-time account link)
+* Edited code/evaluator.py (rules_by_category returns all rules; condition_applies/select_rule explicit condition registry)
+* Edited code/planner.py (state-only proof selector, _plan_checklist replacing _plan_fixed, enforce_dependencies)
+* Edited code/main.py (pass rules index to build_steps)
+* Edited code/models.py (depends_on docstring)
+* Edited code/evaluation/reports.py (new FAILURES entry, six post-feedback IMPROVEMENTS)
+* Edited README.md (section 7 feedback, section 8 packaging, cutoff docs, planner/policy docs, TOC)
+* Ran python3.12 code/main.py and python3.12 code/evaluation/main.py (full + --skip-full); regenerated evaluation_report.md and usage_report.md
+* Installed pypdf for python3.12 (PDF extraction dependency for local runs)
+
+Context:
+tool=Claude Code
+model=claude-tally-glm-5.3-priority[1m]
+branch=main
+repo_root=/Users/valenrina17varela/Desktop/Personal/Coding/hackathons/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none

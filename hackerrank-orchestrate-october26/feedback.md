@@ -1,0 +1,16 @@
+Hi ,
+Thanks for taking part and submitting your build. We have reviewed your work across a few areas, and here is how to make your next submission even stronger.
+
+Your output CSV captured most deletion decisions correctly and reproduced many remediation workflows accurately. The next priority is explaining the system’s behavior with confidence: rehearse how evidence becomes a deletion decision, why timing rules exist, and what happens when evidence falls outside the audit cutoff.
+
+**Judge Interview**
+For your interview, prioritise an end-to-end walkthrough of how evidence establishes deletion, recreation, and state at the audit cutoff; rehearse the actual implementation so current behavior stays distinct from proposed fixes. Prepare a rationale for the deletion-linking window beyond its fit to the samples, including how you would check whether it misses relevant events. Practise answering the question directly before adding a concrete example, particularly when asked about recreation signals. For production questions, prepare a usable rule for prioritising incomplete cases and explain how retention requirements change the remediation order, rather than stopping at the goal of reviewing them.
+
+**Chat Transcript**
+The deliberate progression from planning to bounded implementation assignments and separate audits stands out in your chat transcript. Keep that structure, but make the final diagnosis more personally directed: inspect a reported mismatch, explain why it occurs, and give the AI a targeted correction with an observable acceptance check. When a proposed change improves sample accuracy by relaxing the audit cutoff, explicitly resolve that conflict against the original requirement before approving it. Also record why you choose a technology or evidence-linking approach, so the AI implements your reasoning rather than filling in consequential assumptions.
+
+**Code Zip**
+Prioritise evidence integrity in your submitted code: enforce the audit cutoff consistently and align its documentation with that behavior. Make missing screenshots and resources without observations remain visible as unresolved, and require each citation to prove the state it supports before declaring deletion complete. Apply policy conditions explicitly and enforce resource dependencies when ordering remediation, rather than selecting a category’s first rule or relying on sorting alone. Finally, use the existing measurements on the provided data to investigate the gap between correct decisions and fully correct workflows, checking which policy or evidence-handling change actually improves the result.
+Output CSV
+
+Most deletion decisions in your output CSV were correct, and many remediation workflows were reproduced accurately. The most useful refinement is a policy-driven verification checklist before finalising each workflow: require account-absence, analytics-anonymization, and retained-record checks wherever relevant, rather than treating an audit-record presence check as proof of deletion completeness. Use that same pass to verify resource identifiers, distinguish records requiring deletion from those requiring redaction, and confirm that the final decision follows from the supporting checks.

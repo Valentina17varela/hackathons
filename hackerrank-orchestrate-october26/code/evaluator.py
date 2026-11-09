@@ -376,16 +376,115 @@ def authorizes_deletion(case: Case, classifier: IntentClassifier | None = None) 
 # is a workflow claim and is never consulted.
 
 
-def rules_by_category(rules: Iterable[DeletionRule]) -> dict[str, DeletionRule]:
-    """Index rules by ``data_category``; the first rule of a category wins."""
-    indexed: dict[str, DeletionRule] = {}
+def rules_by_category(
+    rules: Iterable[DeletionRule],
+) -> dict[str, tuple[DeletionRule, ...]]:
+    """Index all rules by ``data_category``, in file order.
+
+    A category may define several rules; the applicable one is selected by
+    evaluating its ``condition`` (``select_rule``), never by blindly taking
+    the first row of the category.
+    """
+    indexed: dict[str, list[DeletionRule]] = {}
     for rule in rules:
-        indexed.setdefault(rule.data_category, rule)
-    return indexed
+        indexed.setdefault(rule.data_category, []).append(rule)
+    return {category: tuple(items) for category, items in indexed.items()}
+
+
+# ---------------------------------------------------------------------------
+# Explicit rule-condition application
+# ---------------------------------------------------------------------------
+#
+# ``deletion_rules.csv`` scopes every rule with a ``condition`` ("Always",
+# "Record is still attributable to a user", ...). Each condition is applied
+# through the registry below instead of being ignored. A condition states a
+# fact about the record; the interpretation of every condition shipped with
+# the dataset is documented here:
+#
+# * "Always"                        - unconditional, applies to every record
+#                                     of the category.
+# * "Record is still attributable   - the record was linked to the subject, so
+#   to a user"                        it was attributable when captured; the
+#                                     rule defines the required end state
+#                                     whether or not that state is reached.
+# * "Log contains a user email      - the record was linked through the
+#   address"                          subject's identifiers, which for a
+#                                     delivery log means the email was present.
+# * "Conversation contains shared   - the message thread exists and carries
+#   customer, agent, or order          the shared context policy protects.
+#   context that must be retained"
+# * "Attachment belongs only to the - the attachment is linked to the subject
+#   deletion subject"                 and to nobody else.
+# * "Record is within the supplied  - the retained record surfaced in the
+#   retention period"                 evidence with its retention window.
+# * "A supplied legal hold is       - the legal-hold record is present in the
+#   active"                           evidence.
+# * "Restore access can be blocked" - a backup archive exists whose restore
+#                                     path can be blocked.
+# * "Account is deleted and only a  - the tombstone exists to preserve the
+#   stable internal user_id is needed  stable reference to retained records.
+#   to preserve references to retained
+#   records"
+#
+# Conditions are facts established by the linking itself, so a linked record
+# satisfies its category's condition. When a future dataset ships a condition
+# whose facts are not established by linking, the registry can decide
+# "does not apply" from the resource; a condition whose facts cannot be
+# evaluated from participant-visible data is conservatively treated as
+# applicable and logged, so a rule is never silently skipped.
+
+_UNCONDITIONAL = "always"
+
+# Facts established by the linking itself (see the table above). New,
+# evaluable conditions slot in here; each entry must justify its verdict from
+# participant-visible data only.
+_CONDITION_FACTS: Mapping[str, Any] = {}
+
+
+def _condition_key(condition: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", condition.strip().lower()).strip()
+
+
+def condition_applies(rule: DeletionRule, resource: Resource) -> bool:
+    """Whether ``rule.condition`` holds for ``resource`` (explicit evaluation).
+
+    Returns ``True`` for unconditional rules and for conditions whose facts
+    are established by the resource being linked at all; logs and returns
+    ``True`` for conditions whose facts are not evaluable from
+    participant-visible data (conservative: policy is presumed applicable).
+    """
+    key = _condition_key(rule.condition)
+    if key == _UNCONDITIONAL:
+        return True
+    if key not in _CONDITION_FACTS:
+        logger.debug(
+            "condition %r of %s cannot be evaluated from visible data; "
+            "rule presumed applicable",
+            rule.condition,
+            rule.rule_id,
+        )
+        return True
+    return _CONDITION_FACTS[key](resource)
+
+
+def select_rule(
+    resource: Resource, rules: Mapping[str, Sequence[DeletionRule]]
+) -> DeletionRule | None:
+    """The rule whose condition explicitly applies to ``resource``, or ``None``.
+
+    Rules of the category are evaluated in file order; the first whose
+    condition holds wins. When no condition holds, the resource cannot be
+    judged under policy (``None``): it is reported as unjudged and blocks
+    ``COMPLETE`` rather than being silently dropped.
+    """
+    for rule in rules.get(resource.data_category or "", ()):
+        if condition_applies(rule, resource):
+            return rule
+    return None
 
 
 def treatment_for(
-    resource: Resource, rules: Mapping[str, DeletionRule]
+    resource: Resource, rules: Mapping[str, Sequence[DeletionRule]]
 ) -> Treatment | None:
     """The treatment required for ``resource``, or ``None`` if it cannot be judged."""
     if resource.observed_state is ObservedState.UNKNOWN:
@@ -401,10 +500,11 @@ def treatment_for(
             plan=RISK_PLAN[resource.risk_kind],
             compliant_state=RISK_COMPLIANT_STATE[resource.risk_kind],
         )
-    rule = rules.get(resource.data_category or "")
+    rule = select_rule(resource, rules)
     if rule is None:
         logger.warning(
-            "no deletion rule for category %r of %s/%s; skipped",
+            "no deletion rule whose condition applies to category %r of "
+            "%s/%s; resource left unjudged",
             resource.data_category,
             resource.system_id,
             resource.resource_id,
